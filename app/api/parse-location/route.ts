@@ -8,6 +8,12 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'URL is required' }, { status: 400 });
         }
 
+        // Check if API key exists
+        if (!process.env.NEXT_PUBLIC_OPENROUTER_API_KEY) {
+            console.warn('⚠️  NEXT_PUBLIC_OPENROUTER_API_KEY not set — AI parsing disabled');
+            return NextResponse.json({ lat: null, lng: null, name: null });
+        }
+
         // Use OpenRouter with Gemini to parse the location
         const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
@@ -18,7 +24,7 @@ export async function POST(request: NextRequest) {
                 'X-Title': 'Insory App'
             },
             body: JSON.stringify({
-                model: 'google/gemini-2.0-flash-exp:free',
+                model: 'google/gemini-2.0-flash-001',
                 messages: [
                     {
                         role: 'system',
@@ -43,7 +49,10 @@ Do not include any other text, just the JSON.`
         });
 
         if (!response.ok) {
-            throw new Error('AI service error');
+            const errorText = await response.text();
+            console.error('OpenRouter API error:', response.status, errorText);
+            // Return null coords instead of throwing — fallback to regex parsing
+            return NextResponse.json({ lat: null, lng: null, name: null });
         }
 
         const data = await response.json();
@@ -59,9 +68,7 @@ Do not include any other text, just the JSON.`
         return NextResponse.json({ lat: null, lng: null, name: null });
     } catch (error) {
         console.error('Error parsing location:', error);
-        return NextResponse.json(
-            { error: 'Failed to parse location' },
-            { status: 500 }
-        );
+        // Return null coords gracefully instead of 500 error
+        return NextResponse.json({ lat: null, lng: null, name: null });
     }
 }
