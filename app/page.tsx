@@ -33,6 +33,7 @@ export default function Home() {
   const [error, setError] = useState('');
   const [proposalId, setProposalId] = useState<string | null>(null);
   const [isPaid, setIsPaid] = useState(false);
+  const [isCheckingPayment, setIsCheckingPayment] = useState(false);
   const [animationDirection, setAnimationDirection] = useState<'right' | 'left'>('right');
 
   const [formData, setFormData] = useState<ProposalData>({
@@ -189,6 +190,39 @@ export default function Home() {
     }
     return true;
   };
+
+  const checkPaymentLoop = useCallback(() => {
+    if (!proposalId) return;
+
+    setIsCheckingPayment(true);
+    let attempts = 0;
+    const maxAttempts = 5; // 10 seconds total (2s interval)
+
+    const interval = setInterval(async () => {
+      attempts++;
+
+      try {
+        const { data } = await supabase
+          .from('proposals')
+          .select('is_paid')
+          .eq('id', proposalId)
+          .single();
+
+        if (data?.is_paid) {
+          setIsPaid(true);
+          clearInterval(interval);
+          setIsCheckingPayment(false);
+        } else if (attempts >= maxAttempts) {
+          clearInterval(interval);
+          setIsCheckingPayment(false);
+        }
+      } catch (e) {
+        console.error('Check payment error', e);
+        clearInterval(interval);
+        setIsCheckingPayment(false);
+      }
+    }, 2000);
+  }, [proposalId]);
 
   const generateProposal = async () => {
     if (!validateStep2()) return;
@@ -361,7 +395,7 @@ export default function Home() {
                   <label className="form-label">Give them a hint</label>
                   <textarea
                     className="textarea-field"
-                    placeholder="e.g., Remember that rainy evening when we shared our first umbrella? Go there..."
+                    placeholder="e.g.you speeled a coffe,..."
                     value={formData.hint}
                     onChange={(e) => handleInputChange('hint', e.target.value)}
                     style={{ minHeight: '80px' }}
@@ -463,7 +497,7 @@ export default function Home() {
                 onClick={generateProposal}
                 disabled={loading}
               >
-                {loading ? <Loader2 className="animate-spin" size={20} /> : <>Generate QR Code <QrCode size={18} /></>}
+                {loading ? <Loader2 className="animate-spin" size={20} /> : <>Generate QR  <QrCode size={18} /></>}
               </button>
             </div>
           </>
@@ -473,15 +507,30 @@ export default function Home() {
         {step === 3 && proposalId && (
           <>
             <div className={`form-content ${animationDirection === 'right' ? 'slide-in-right' : 'slide-in-left'}`}>
-              {!isPaid ? (
-                <div className="glass-card" style={{ padding: '32px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔒</div>
-                  <h2 className="text-gradient-rose" style={{ fontSize: '24px', marginBottom: '12px' }}>
-                    One Last Step!
+              {/* Always show QR Code */}
+              <div style={{ marginBottom: !isPaid ? '20px' : '0' }}>
+                <QRCodeDisplay
+                  proposalId={proposalId}
+                  question={formData.question}
+                />
+              </div>
+
+              {!isPaid && (
+                <div className="glass-card slide-in-right" style={{
+                  padding: '24px',
+                  textAlign: 'center',
+                  background: 'rgba(20, 5, 20, 0.8)',
+                  border: '1px solid var(--rose-500)',
+                  boxShadow: '0 0 30px rgba(244, 63, 108, 0.2)'
+                }}>
+                  <div style={{ fontSize: '32px', marginBottom: '12px' }}>🔒</div>
+                  <h2 className="text-gradient-rose" style={{ fontSize: '22px', marginBottom: '8px' }}>
+                    Activate Your Proposal
                   </h2>
-                  <p style={{ color: 'rgba(255,255,255,0.8)', marginBottom: '24px', fontSize: '15px' }}>
-                    Your magical proposal is ready. Make it live to share it with your special person.
+                  <p style={{ color: 'rgba(255,255,255,0.8)', marginBottom: '16px', fontSize: '14px' }}>
+                    Scan the QR above to test. To make it live for your partner, please activate it.
                   </p>
+
                   <a
                     href={`https://carenote.gumroad.com/l/uizjdd?email=${encodeURIComponent(formData.email)}`}
                     target="_blank"
@@ -493,36 +542,42 @@ export default function Home() {
                       justifyContent: 'center',
                       gap: '8px',
                       width: '100%',
-                      background: 'linear-gradient(135deg, #ff90e8 0%, #ffc9f0 100%)', /* Gumroad-ish colors */
+                      background: 'linear-gradient(135deg, #ff90e8 0%, #ffc9f0 100%)',
                       color: '#000',
                       fontWeight: 700,
-                      marginBottom: '16px'
+                      marginBottom: '12px'
                     }}
                   >
-                    Make Your QR Live ($28)
+                    Make It Live ($28)
                   </a>
 
                   <button
-                    onClick={() => window.location.reload()}
+                    onClick={checkPaymentLoop}
+                    disabled={isCheckingPayment}
                     style={{
-                      background: 'transparent',
-                      border: '1px solid rgba(255,255,255,0.3)',
+                      background: 'rgba(255,255,255,0.1)',
+                      border: '1px solid rgba(255,255,255,0.2)',
                       color: '#fff',
-                      padding: '8px 16px',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      fontSize: '13px'
+                      padding: '10px',
+                      borderRadius: '50px',
+                      cursor: isCheckingPayment ? 'wait' : 'pointer',
+                      fontSize: '13px',
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      transition: 'all 0.2s'
                     }}
                   >
-                    <RefreshCcw size={14} style={{ display: 'inline', marginRight: '4px' }} />
-                    I Paid, Refresh Status
+                    {isCheckingPayment ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <RefreshCcw size={14} />
+                    )}
+                    {isCheckingPayment ? 'Checking Status...' : 'I Paid, Refresh Status'}
                   </button>
                 </div>
-              ) : (
-                <QRCodeDisplay
-                  proposalId={proposalId}
-                  question={formData.question}
-                />
               )}
 
             </div>
