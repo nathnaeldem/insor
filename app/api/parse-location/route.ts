@@ -2,10 +2,27 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
     try {
-        const { url } = await request.json();
+        let { url } = await request.json();
 
         if (!url) {
             return NextResponse.json({ error: 'URL is required' }, { status: 400 });
+        }
+
+        // Expand shortened URLs (goo.gl, maps.app.goo.gl) by following redirects
+        if (url.includes('goo.gl') || url.includes('maps.app')) {
+            try {
+                console.log('🔗 Expanding shortened URL:', url);
+                const expandResponse = await fetch(url, {
+                    method: 'HEAD',
+                    redirect: 'follow',
+                });
+                const expandedUrl = expandResponse.url;
+                console.log('✅ Expanded to:', expandedUrl);
+                url = expandedUrl;
+            } catch (expandError) {
+                console.warn('⚠️  Failed to expand shortened URL, trying original:', expandError);
+                // Continue with original URL if expansion fails
+            }
         }
 
         // Check if API key exists
