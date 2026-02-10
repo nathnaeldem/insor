@@ -237,7 +237,7 @@ export default function Home() {
 
   return (
     <div className="app-container">
-      <div className="main-content">
+      <div className="main-content pb-safe">
         {/* Logo */}
         <div style={{ marginBottom: '16px', textAlign: 'center' }}>
           <h1 className="romantic-title text-gradient-rose" style={{ fontSize: '32px' }}>Love Lock</h1>
@@ -256,288 +256,301 @@ export default function Home() {
 
         {/* Step 1: Location */}
         {step === 1 && (
-          <div className={`form-content ${animationDirection === 'right' ? 'slide-in-right' : 'slide-in-left'}`}>
-            <div className="glass-card" style={{ padding: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
-                <MapPin className="text-rose-400" size={24} />
-                <h2 className="text-gradient-purple" style={{ fontSize: '20px' }}>
-                  Choose The Place
-                </h2>
-              </div>
+          <>
+            <div className={`form-content ${animationDirection === 'right' ? 'slide-in-right' : 'slide-in-left'}`}>
+              <div className="glass-card" style={{ padding: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <MapPin className="text-rose-400" size={24} />
+                  <h2 className="text-gradient-purple" style={{ fontSize: '20px' }}>
+                    Choose The Place
+                  </h2>
+                </div>
 
-              <p style={{ color: 'var(--text-tertiary)', fontSize: '14px', marginBottom: '16px', textAlign: 'center' }}>
-                Where is the special place?
-              </p>
+                <p style={{ color: 'var(--text-tertiary)', fontSize: '14px', marginBottom: '16px', textAlign: 'center' }}>
+                  Where is the special place?
+                </p>
 
-              <div style={{ marginBottom: '12px' }}>
-                <label className="form-label">Location Name (optional)</label>
-                <input
-                  type="text"
-                  className="input-field"
-                  placeholder="e.g., The coffee shop where we first met"
-                  value={formData.locationName}
-                  onChange={(e) => handleInputChange('locationName', e.target.value)}
-                />
-              </div>
+                <div style={{ marginBottom: '12px' }}>
+                  <label className="form-label">Location Name (optional)</label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="e.g., The coffee shop where we first met"
+                    value={formData.locationName}
+                    onChange={(e) => handleInputChange('locationName', e.target.value)}
+                  />
+                </div>
 
-              <div style={{ marginBottom: '12px' }}>
-                <label className="form-label">Paste Google Maps Link or Coordinates</label>
-                <input
-                  type="text"
-                  className="input-field"
-                  placeholder="Paste a Google Maps link or coordinates..."
-                  onPaste={handleLocationPaste}
-                  onChange={(e) => {
-                    // Handle manual coordinate input
-                    const val = e.target.value;
-                    const coords = val.split(',').map(c => parseFloat(c.trim()));
-                    if (coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
-                      setFormData(prev => ({
-                        ...prev,
-                        locationLat: coords[0],
-                        locationLng: coords[1],
-                        locationName: prev.locationName || `${coords[0].toFixed(4)}, ${coords[1].toFixed(4)}`
-                      }));
-                    }
-                  }}
-                />
-              </div>
+                <div style={{ marginBottom: '12px' }}>
+                  <label className="form-label">Paste Google Maps Link or Coordinates</label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="Paste a Google Maps link or coordinates..."
+                    onPaste={handleLocationPaste}
+                    onChange={(e) => {
+                      // Handle manual coordinate input
+                      const val = e.target.value;
+                      const coords = val.split(',').map(c => parseFloat(c.trim()));
+                      if (coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
+                        setFormData(prev => ({
+                          ...prev,
+                          locationLat: coords[0],
+                          locationLng: coords[1],
+                          locationName: prev.locationName || `${coords[0].toFixed(4)}, ${coords[1].toFixed(4)}`
+                        }));
+                      }
+                    }}
+                  />
+                </div>
 
-              {formData.locationLat !== 0 && formData.locationLng !== 0 && (
-                <div className="location-preview fade-in">
-                  <div className="location-icon"><MapPin size={20} /></div>
-                  <div>
-                    <div style={{ fontWeight: 500 }}>{formData.locationName || 'Location Set'}</div>
-                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
-                      {formData.locationLat.toFixed(6)}, {formData.locationLng.toFixed(6)}
+                {formData.locationLat !== 0 && formData.locationLng !== 0 && (
+                  <div className="location-preview fade-in">
+                    <div className="location-icon"><MapPin size={20} /></div>
+                    <div>
+                      <div style={{ fontWeight: 500 }}>{formData.locationName || 'Location Set'}</div>
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
+                        {formData.locationLat.toFixed(6)}, {formData.locationLng.toFixed(6)}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {error && <div className="error-message" style={{ marginTop: '12px' }}>{error}</div>}
+                {error && <div className="error-message" style={{ marginTop: '12px' }}>{error}</div>}
+              </div>
+
             </div>
 
-            <button
-              className="btn-primary"
-              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-              onClick={() => validateStep1() && goToStep(2)}
-              disabled={loading}
-            >
-              {loading ? <Loader2 className="animate-spin" size={20} /> : <>Continue <ArrowRight size={18} /></>}
-            </button>
-          </div>
+            <div className="sticky-action-bar">
+              <button
+                className="btn-primary"
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                onClick={() => validateStep1() && goToStep(2)}
+                disabled={loading}
+              >
+                {loading ? <Loader2 className="animate-spin" size={20} /> : <>Continue <ArrowRight size={18} /></>}
+              </button>
+            </div>
+          </>
         )}
 
         {/* Step 2: Question & Hint */}
         {step === 2 && (
-          <div className={`form-content ${animationDirection === 'right' ? 'slide-in-right' : 'slide-in-left'}`}>
-            <div className="glass-card" style={{ padding: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
-                <Mail className="text-rose-400" size={24} />
-                <h2 className="text-gradient-gold" style={{ fontSize: '20px' }}>
-                  The Question
-                </h2>
-              </div>
-
-              <div style={{ marginBottom: '12px' }}>
-                <label className="form-label">Your Email (to save your proposal)</label>
-                <input
-                  type="email"
-                  className="input-field"
-                  placeholder="you@email.com"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
-                />
-              </div>
-
-              <div style={{ marginBottom: '12px' }}>
-                <label className="form-label">Give them a hint</label>
-                <textarea
-                  className="textarea-field"
-                  placeholder="e.g., Remember that rainy evening when we shared our first umbrella? Go there..."
-                  value={formData.hint}
-                  onChange={(e) => handleInputChange('hint', e.target.value)}
-                  style={{ minHeight: '80px' }}
-                />
-              </div>
-
-              <div style={{ marginBottom: '12px' }}>
-                <label className="form-label">Your Question</label>
-                <div
-                  className="horizontal-scroll-container"
-                  style={{
-                    display: 'flex',
-                    overflowX: 'auto',
-                    gap: '8px',
-                    paddingBottom: '8px',
-                    width: '100%',
-                    maxWidth: '100%',
-                    scrollbarWidth: 'none',
-                    msOverflowStyle: 'none'
-                  }}
-                >
-                  {questionTemplates.map(q => (
-                    <button
-                      key={q}
-                      type="button"
-                      onClick={() => handleInputChange('question', q)}
-                      style={{
-                        padding: '8px 16px',
-                        fontSize: '13px',
-                        background: formData.question === q ? 'var(--rose-500)' : 'rgba(255,255,255,0.1)',
-                        border: 'none',
-                        borderRadius: '20px',
-                        color: '#fff',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        whiteSpace: 'nowrap',
-                        flex: '0 0 auto'
-                      }}
-                    >
-                      {q}
-                    </button>
-                  ))}
+          <>
+            <div className={`form-content ${animationDirection === 'right' ? 'slide-in-right' : 'slide-in-left'}`}>
+              <div className="glass-card" style={{ padding: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <Mail className="text-rose-400" size={24} />
+                  <h2 className="text-gradient-gold" style={{ fontSize: '20px' }}>
+                    The Question
+                  </h2>
                 </div>
-                <input
-                  type="text"
-                  className="input-field"
-                  placeholder="Or type your own question..."
-                  value={formData.question}
-                  onChange={(e) => handleInputChange('question', e.target.value)}
-                />
-              </div>
 
-              <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
-                <div style={{ flex: 1 }}>
-                  <label className="form-label text-gradient-rose" style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    YES Message <Heart size={12} fill="currentColor" className="text-rose-500" />
-                  </label>
+                <div style={{ marginBottom: '12px' }}>
+                  <label className="form-label">Your Email (to save your proposal)</label>
                   <input
-                    type="text"
+                    type="email"
                     className="input-field"
-                    placeholder="OMG YES! 💍"
-                    value={formData.yesMessage}
-                    onChange={(e) => handleInputChange('yesMessage', e.target.value)}
-                    style={{ padding: '12px 16px', borderColor: 'rgba(244, 63, 108, 0.4)' }}
+                    placeholder="you@email.com"
+                    value={formData.email}
+                    onChange={(e) => handleInputChange('email', e.target.value)}
                   />
                 </div>
 
-                <div style={{ flex: 1 }}>
-                  <label className="form-label" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    No Message <HeartCrack size={12} className="text-gray-400" />
-                  </label>
+                <div style={{ marginBottom: '12px' }}>
+                  <label className="form-label">Give them a hint</label>
+                  <textarea
+                    className="textarea-field"
+                    placeholder="e.g., Remember that rainy evening when we shared our first umbrella? Go there..."
+                    value={formData.hint}
+                    onChange={(e) => handleInputChange('hint', e.target.value)}
+                    style={{ minHeight: '80px' }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: '12px' }}>
+                  <label className="form-label">Your Question</label>
+                  <div
+                    className="horizontal-scroll-container"
+                    style={{
+                      display: 'flex',
+                      overflowX: 'auto',
+                      gap: '8px',
+                      paddingBottom: '8px',
+                      width: '100%',
+                      maxWidth: '100%',
+                      scrollbarWidth: 'none',
+                      msOverflowStyle: 'none'
+                    }}
+                  >
+                    {questionTemplates.map(q => (
+                      <button
+                        key={q}
+                        type="button"
+                        onClick={() => handleInputChange('question', q)}
+                        style={{
+                          padding: '8px 16px',
+                          fontSize: '13px',
+                          background: formData.question === q ? 'var(--rose-500)' : 'rgba(255,255,255,0.1)',
+                          border: 'none',
+                          borderRadius: '20px',
+                          color: '#fff',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          whiteSpace: 'nowrap',
+                          flex: '0 0 auto'
+                        }}
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
                   <input
                     type="text"
                     className="input-field"
-                    placeholder="Maybe next time..."
-                    value={formData.noMessage}
-                    onChange={(e) => handleInputChange('noMessage', e.target.value)}
-                    style={{ padding: '12px 16px' }}
+                    placeholder="Or type your own question..."
+                    value={formData.question}
+                    onChange={(e) => handleInputChange('question', e.target.value)}
                   />
                 </div>
+
+                <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+                  <div style={{ flex: 1 }}>
+                    <label className="form-label text-gradient-rose" style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      YES Message <Heart size={12} fill="currentColor" className="text-rose-500" />
+                    </label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      placeholder="OMG YES! 💍"
+                      value={formData.yesMessage}
+                      onChange={(e) => handleInputChange('yesMessage', e.target.value)}
+                      style={{ padding: '12px 16px', borderColor: 'rgba(244, 63, 108, 0.4)' }}
+                    />
+                  </div>
+
+                  <div style={{ flex: 1 }}>
+                    <label className="form-label" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      No Message <HeartCrack size={12} className="text-gray-400" />
+                    </label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      placeholder="Maybe next time..."
+                      value={formData.noMessage}
+                      onChange={(e) => handleInputChange('noMessage', e.target.value)}
+                      style={{ padding: '12px 16px' }}
+                    />
+                  </div>
+                </div>
+
+                {error && <div className="error-message" style={{ marginTop: '12px' }}>{error}</div>}
               </div>
 
-              {error && <div className="error-message" style={{ marginTop: '12px' }}>{error}</div>}
             </div>
 
-            <div style={{ display: 'flex', gap: '12px' }}>
+            <div className="sticky-action-bar">
               <button
                 className="btn-secondary"
                 onClick={() => goToStep(1)}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1 }}
               >
                 <ArrowLeft size={16} /> Back
               </button>
               <button
                 className="btn-primary"
-                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                style={{ flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                 onClick={generateProposal}
                 disabled={loading}
               >
                 {loading ? <Loader2 className="animate-spin" size={20} /> : <>Generate QR Code <QrCode size={18} /></>}
               </button>
             </div>
-          </div>
+          </>
         )}
 
         {/* Step 3: Payment or QR Code */}
         {step === 3 && proposalId && (
-          <div className={`form-content ${animationDirection === 'right' ? 'slide-in-right' : 'slide-in-left'}`}>
-            {!isPaid ? (
-              <div className="glass-card" style={{ padding: '32px', textAlign: 'center' }}>
-                <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔒</div>
-                <h2 className="text-gradient-rose" style={{ fontSize: '24px', marginBottom: '12px' }}>
-                  One Last Step!
-                </h2>
-                <p style={{ color: 'rgba(255,255,255,0.8)', marginBottom: '24px', fontSize: '15px' }}>
-                  Your magical proposal is ready. Make it live to share it with your special person.
-                </p>
-                <a
-                  href={`https://carenote.gumroad.com/l/uizjdd?email=${encodeURIComponent(formData.email)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-primary"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    width: '100%',
-                    background: 'linear-gradient(135deg, #ff90e8 0%, #ffc9f0 100%)', /* Gumroad-ish colors */
-                    color: '#000',
-                    fontWeight: 700,
-                    marginBottom: '16px'
-                  }}
-                >
-                  Make Your QR Live ($28)
-                </a>
+          <>
+            <div className={`form-content ${animationDirection === 'right' ? 'slide-in-right' : 'slide-in-left'}`}>
+              {!isPaid ? (
+                <div className="glass-card" style={{ padding: '32px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔒</div>
+                  <h2 className="text-gradient-rose" style={{ fontSize: '24px', marginBottom: '12px' }}>
+                    One Last Step!
+                  </h2>
+                  <p style={{ color: 'rgba(255,255,255,0.8)', marginBottom: '24px', fontSize: '15px' }}>
+                    Your magical proposal is ready. Make it live to share it with your special person.
+                  </p>
+                  <a
+                    href={`https://carenote.gumroad.com/l/uizjdd?email=${encodeURIComponent(formData.email)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-primary"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      width: '100%',
+                      background: 'linear-gradient(135deg, #ff90e8 0%, #ffc9f0 100%)', /* Gumroad-ish colors */
+                      color: '#000',
+                      fontWeight: 700,
+                      marginBottom: '16px'
+                    }}
+                  >
+                    Make Your QR Live ($28)
+                  </a>
 
-                <button
-                  onClick={() => window.location.reload()}
-                  style={{
-                    background: 'transparent',
-                    border: '1px solid rgba(255,255,255,0.3)',
-                    color: '#fff',
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    fontSize: '13px'
-                  }}
-                >
-                  <RefreshCcw size={14} style={{ display: 'inline', marginRight: '4px' }} />
-                  I Paid, Refresh Status
-                </button>
-              </div>
-            ) : (
-              <QRCodeDisplay
-                proposalId={proposalId}
-                question={formData.question}
-              />
-            )}
+                  <button
+                    onClick={() => window.location.reload()}
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid rgba(255,255,255,0.3)',
+                      color: '#fff',
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontSize: '13px'
+                    }}
+                  >
+                    <RefreshCcw size={14} style={{ display: 'inline', marginRight: '4px' }} />
+                    I Paid, Refresh Status
+                  </button>
+                </div>
+              ) : (
+                <QRCodeDisplay
+                  proposalId={proposalId}
+                  question={formData.question}
+                />
+              )}
 
-            <button
-              className="btn-secondary"
-              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '16px' }}
-              onClick={() => {
-                setProposalId(null);
-                setFormData({
-                  locationLat: 0,
-                  locationLng: 0,
-                  locationName: '',
-                  hint: '',
-                  question: 'Will you marry me?',
-                  yesMessage: "You've made me the happiest person alive! 💍❤️",
-                  noMessage: "I understand. Thank you for being honest with me. 💔",
-                  email: ''
-                });
-                localStorage.removeItem('lastProposal');
-                goToStep(1);
-              }}
-            >
-              <RefreshCcw size={16} /> Create Another Proposal
-            </button>
-          </div>
+            </div>
+
+            <div className="sticky-action-bar">
+              <button
+                className="btn-secondary"
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                onClick={() => {
+                  setProposalId(null);
+                  setFormData({
+                    locationLat: 0,
+                    locationLng: 0,
+                    locationName: '',
+                    hint: '',
+                    question: 'Will you marry me?',
+                    yesMessage: "You've made me the happiest person alive! 💍❤️",
+                    noMessage: "I understand. Thank you for being honest with me. 💔",
+                    email: ''
+                  });
+                  localStorage.removeItem('lastProposal');
+                  goToStep(1);
+                }}
+              >
+                <RefreshCcw size={16} /> Create Another Proposal
+              </button>
+            </div>
+          </>
         )}
       </div>
 
@@ -554,6 +567,6 @@ export default function Home() {
       }}>
         Made with <Heart size={10} fill="currentColor" /> for lovers everywhere
       </div>
-    </div>
+    </div >
   );
 }

@@ -164,7 +164,7 @@ export default function ProposalPage() {
 
     return (
         <div className="app-container">
-            <div className="main-content">
+            <div className="main-content pb-safe">
                 {/* Loading */}
                 {stage === 'loading' && (
                     <div className="fade-in" style={{ textAlign: 'center' }}>
@@ -199,162 +199,172 @@ export default function ProposalPage() {
 
                 {/* Hint Stage */}
                 {stage === 'hint' && proposal && (
-                    <div className="glass-card fade-in" style={{ padding: '32px', textAlign: 'center', maxWidth: '400px' }}>
-                        <Mail className="text-rose-400" size={64} style={{ margin: '0 auto 16px' }} />
-                        <h2 className="text-gradient-rose" style={{ fontSize: '28px', marginBottom: '8px' }}>
-                            A Surprise Awaits
-                        </h2>
-                        <p style={{ color: 'var(--text-tertiary)', marginBottom: '24px' }}>
-                            Go to the magical spot to unlock the message...
-                        </p>
-
-                        <div style={{
-                            background: 'rgba(244, 63, 108, 0.1)',
-                            border: '1px solid rgba(244, 63, 108, 0.3)',
-                            borderRadius: '16px',
-                            padding: '20px',
-                            marginBottom: '24px'
-                        }}>
-                            <p style={{
-                                fontSize: '16px',
-                                lineHeight: 1.6,
-                                fontStyle: 'italic',
-                                color: 'var(--rose-200)'
-                            }}>
-                                &ldquo;{proposal.hint}&rdquo;
+                    <>
+                        <div className="glass-card fade-in" style={{ padding: '32px', textAlign: 'center', maxWidth: '400px' }}>
+                            <Mail className="text-rose-400" size={64} style={{ margin: '0 auto 16px' }} />
+                            <h2 className="text-gradient-rose" style={{ fontSize: '28px', marginBottom: '8px' }}>
+                                A Surprise Awaits
+                            </h2>
+                            <p style={{ color: 'var(--text-tertiary)', marginBottom: '24px' }}>
+                                Go to the magical spot to unlock the message...
                             </p>
-                        </div>
 
-                        {proposal.location_name && (
-                            <div className="location-preview" style={{ marginBottom: '24px' }}>
-                                <div className="location-icon"><MapPin size={24} className="text-rose-400" /></div>
-                                <div style={{ textAlign: 'left' }}>
-                                    <div style={{ fontWeight: 500 }}>{proposal.location_name}</div>
-                                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
-                                        Go to this special place
+                            <div style={{
+                                background: 'rgba(244, 63, 108, 0.1)',
+                                border: '1px solid rgba(244, 63, 108, 0.3)',
+                                borderRadius: '16px',
+                                padding: '20px',
+                                marginBottom: '24px'
+                            }}>
+                                <p style={{
+                                    fontSize: '16px',
+                                    lineHeight: 1.6,
+                                    fontStyle: 'italic',
+                                    color: 'var(--rose-200)'
+                                }}>
+                                    &ldquo;{proposal.hint}&rdquo;
+                                </p>
+                            </div>
+
+                            {proposal.location_name && (
+                                <div className="location-preview" style={{ marginBottom: '24px' }}>
+                                    <div className="location-icon"><MapPin size={24} className="text-rose-400" /></div>
+                                    <div style={{ textAlign: 'left' }}>
+                                        <div style={{ fontWeight: 500 }}>{proposal.location_name}</div>
+                                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
+                                            Go to this special place
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
+                        </div>
 
-                        <button
-                            className="btn-primary"
-                            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                            onClick={startLocationWatch}
-                        >
-                            <MapPin size={20} /> I&apos;m on my way!
-                        </button>
-
-                        <button
-                            style={{
-                                marginTop: '12px',
-                                background: 'none',
-                                border: 'none',
-                                color: 'rgba(255,255,255,0.4)',
-                                fontSize: '13px',
-                                cursor: 'pointer',
-                                textDecoration: 'underline'
-                            }}
-                            onClick={skipToQuestion}
-                        >
-                            I&apos;m already there
-                        </button>
-                    </div>
+                        <div className="sticky-action-bar" style={{ flexDirection: 'column' }}>
+                            <button
+                                className="btn-primary"
+                                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                                onClick={startLocationWatch}
+                            >
+                                <MapPin size={20} /> I&apos;m on my way!
+                            </button>
+                            <button
+                                style={{
+                                    marginTop: '4px',
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'rgba(255,255,255,0.4)',
+                                    fontSize: '13px',
+                                    cursor: 'pointer',
+                                    textDecoration: 'underline'
+                                }}
+                                onClick={skipToQuestion}
+                            >
+                                I&apos;m already there
+                            </button>
+                        </div>
+                    </>
                 )}
 
                 {/* Distance Stage */}
                 {stage === 'distance' && proposal && (
-                    <div className="glass-card fade-in" style={{ padding: '32px', textAlign: 'center', maxWidth: '400px' }}>
-                        <Navigation className="text-rose-400 pulse" size={64} style={{ margin: '0 auto 16px' }} />
-                        <h2 className="text-gradient-purple" style={{ fontSize: '24px', marginBottom: '16px' }}>
-                            You're Getting Closer
-                        </h2>
+                    <>
+                        <div className="glass-card fade-in" style={{ padding: '32px', textAlign: 'center', maxWidth: '400px' }}>
+                            <Navigation className="text-rose-400 pulse" size={64} style={{ margin: '0 auto 16px' }} />
+                            <h2 className="text-gradient-purple" style={{ fontSize: '24px', marginBottom: '16px' }}>
+                                You're Getting Closer
+                            </h2>
 
-                        {distance !== null ? (
-                            <>
-                                <div className="distance-badge" style={{ marginBottom: '20px' }}>
-                                    <MapPin size={16} />
-                                    <span>{formatDistance(distance)} away</span>
-                                </div>
+                            {distance !== null ? (
+                                <>
+                                    <div className="distance-badge" style={{ marginBottom: '20px' }}>
+                                        <MapPin size={16} />
+                                        <span>{formatDistance(distance)} away</span>
+                                    </div>
 
-                                <div style={{
-                                    width: '100%',
-                                    height: '8px',
-                                    background: 'rgba(255,255,255,0.1)',
-                                    borderRadius: '4px',
-                                    overflow: 'hidden',
-                                    marginBottom: '20px'
-                                }}>
                                     <div style={{
-                                        width: `${Math.max(0, Math.min(100, (1 - distance / 1000) * 100))}%`,
-                                        height: '100%',
-                                        background: 'linear-gradient(90deg, var(--rose-500), var(--rose-400))',
+                                        width: '100%',
+                                        height: '8px',
+                                        background: 'rgba(255,255,255,0.1)',
                                         borderRadius: '4px',
-                                        transition: 'width 0.5s ease'
-                                    }} />
-                                </div>
+                                        overflow: 'hidden',
+                                        marginBottom: '20px'
+                                    }}>
+                                        <div style={{
+                                            width: `${Math.max(0, Math.min(100, (1 - distance / 1000) * 100))}%`,
+                                            height: '100%',
+                                            background: 'linear-gradient(90deg, var(--rose-500), var(--rose-400))',
+                                            borderRadius: '4px',
+                                            transition: 'width 0.5s ease'
+                                        }} />
+                                    </div>
 
-                                <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '14px' }}>
-                                    {distance > 500
-                                        ? "Keep going! You're getting warmer 💕"
-                                        : distance > 100
-                                            ? "Almost there! So close! 💗"
-                                            : "You're right there! Just a few more steps! 💖"
-                                    }
-                                </p>
-                            </>
-                        ) : (
-                            <>
-                                <Loader2 className="animate-spin text-rose-400" size={32} style={{ margin: '0 auto 20px' }} />
-                                <p style={{ color: 'rgba(255,255,255,0.5)' }}>
-                                    Locating you...
-                                </p>
-                            </>
-                        )}
+                                    <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '14px' }}>
+                                        {distance > 500
+                                            ? "Keep going! You're getting warmer 💕"
+                                            : distance > 100
+                                                ? "Almost there! So close! 💗"
+                                                : "You're right there! Just a few more steps! 💖"
+                                        }
+                                    </p>
+                                </>
+                            ) : (
+                                <>
+                                    <Loader2 className="animate-spin text-rose-400" size={32} style={{ margin: '0 auto 20px' }} />
+                                    <p style={{ color: 'rgba(255,255,255,0.5)' }}>
+                                        Locating you...
+                                    </p>
+                                </>
+                            )}
+                        </div>
 
-                        <button
-                            style={{
-                                marginTop: '20px',
-                                background: 'none',
-                                border: 'none',
-                                color: 'rgba(255,255,255,0.4)',
-                                fontSize: '13px',
-                                cursor: 'pointer',
-                                textDecoration: 'underline'
-                            }}
-                            onClick={skipToQuestion}
-                        >
-                            Skip location check
-                        </button>
-                    </div>
+                        <div className="sticky-action-bar">
+                            <button
+                                style={{
+                                    background: 'none',
+                                    border: '1px solid rgba(255,255,255,0.2)',
+                                    padding: '8px 16px',
+                                    borderRadius: '20px',
+                                    color: 'rgba(255,255,255,0.6)',
+                                    fontSize: '13px',
+                                    cursor: 'pointer',
+                                    width: '100%'
+                                }}
+                                onClick={skipToQuestion}
+                            >
+                                Skip location check
+                            </button>
+                        </div>
+                    </>
                 )}
 
                 {/* Question Stage */}
                 {stage === 'question' && proposal && (
-                    <div className="glass-card celebrate" style={{ padding: '40px', textAlign: 'center', maxWidth: '420px', border: '2px solid rgba(244, 63, 108, 0.5)' }}>
-                        <Gem className="text-rose-300" size={80} style={{ margin: '0 auto 20px', filter: 'drop-shadow(0 0 10px rgba(244,63,108,0.5))' }} />
+                    <>
+                        <div className="glass-card celebrate" style={{ padding: '40px', textAlign: 'center', maxWidth: '420px', border: '2px solid rgba(244, 63, 108, 0.5)' }}>
+                            <Gem className="text-rose-300" size={80} style={{ margin: '0 auto 20px', filter: 'drop-shadow(0 0 10px rgba(244,63,108,0.5))' }} />
 
-                        <h2 className="text-gradient-gold" style={{ fontSize: '32px', marginBottom: '24px', lineHeight: 1.3 }}>
-                            {proposal.question}
-                        </h2>
+                            <h2 className="text-gradient-gold" style={{ fontSize: '32px', marginBottom: '24px', lineHeight: 1.3 }}>
+                                {proposal.question}
+                            </h2>
+                        </div>
 
-                        <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                        <div className="sticky-action-bar">
                             <button
                                 className="btn-yes"
                                 onClick={() => handleResponse('yes')}
-                                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                                style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}
                             >
                                 <Heart fill="currentColor" size={24} /> Yes!
                             </button>
                             <button
                                 className="btn-no"
                                 onClick={() => handleResponse('no')}
-                                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                                style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}
                             >
                                 <X size={24} /> No
                             </button>
                         </div>
-                    </div>
+                    </>
                 )}
 
                 {/* Response Stage */}
