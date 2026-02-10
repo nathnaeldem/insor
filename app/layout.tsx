@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Love Lock 💕 | Create Your Special Proposal",
+  title: "Insory 💕 | Create Your Special Proposal",
   description: "Create a magical, location-based proposal experience with QR codes. Make your special moment unforgettable.",
 };
 

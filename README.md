@@ -1,4 +1,4 @@
-# 💕 Love Lock - QR-Based Love Proposal App
+# 💕 Insory - QR-Based Love Proposal App
 
 Create magical, location-based proposals with beautiful QR codes. Make your special moment unforgettable!
 

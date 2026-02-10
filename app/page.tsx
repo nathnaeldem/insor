@@ -274,7 +274,7 @@ export default function Home() {
       <div className="main-content pb-safe">
         {/* Logo */}
         <div style={{ marginBottom: '16px', textAlign: 'center' }}>
-          <h1 className="romantic-title text-gradient-rose" style={{ fontSize: '32px' }}>Love Lock</h1>
+          <h1 className="romantic-title text-gradient-rose" style={{ fontSize: '32px' }}>Insory</h1>
           <p className="romantic-subtitle text-vibrant" style={{ opacity: 0.9 }}>Create your magical proposal</p>
         </div>
 

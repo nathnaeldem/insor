@@ -445,7 +445,7 @@ export default function ProposalPage() {
                 alignItems: 'center',
                 gap: '4px'
             }}>
-                Made with <Heart size={10} fill="currentColor" /> Love Lock
+                Made with <Heart size={10} fill="currentColor" /> Insory
             </div>
         </div>
     );

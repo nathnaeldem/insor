@@ -14,8 +14,8 @@ export async function POST(request: NextRequest) {
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${process.env.NEXT_PUBLIC_OPENROUTER_API_KEY}`,
-                'HTTP-Referer': 'https://lovelockapp.com',
-                'X-Title': 'Love Lock App'
+                'HTTP-Referer': 'https://insory.com',
+                'X-Title': 'Insory App'
             },
             body: JSON.stringify({
                 model: 'google/gemini-2.0-flash-exp:free',
