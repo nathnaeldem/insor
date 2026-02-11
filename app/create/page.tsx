@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import {
   MapPin,
@@ -11,12 +11,12 @@ import {
   Heart,
   HeartCrack,
   Mail,
-  type LucideIcon,
   Loader2,
-  CreditCard,
-  ExternalLink,
-  Lock,
-  CheckCircle
+  Video,
+  VideoOff,
+  Play,
+  Trash2,
+  Camera
 } from 'lucide-react';
 import QRCodeDisplay from '../components/QRCodeDisplay';
 
@@ -34,13 +34,26 @@ interface ProposalData {
 export default function Home() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [isInitialLoading, setIsInitialLoading] = useState(true); // Loading spinner on mount
-  const [isParsingLocation, setIsParsingLocation] = useState(false); // Spinner for AI parse
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isParsingLocation, setIsParsingLocation] = useState(false);
   const [error, setError] = useState('');
   const [proposalId, setProposalId] = useState<string | null>(null);
   const [isPaid, setIsPaid] = useState(false);
   const [isCheckingPayment, setIsCheckingPayment] = useState(false);
   const [animationDirection, setAnimationDirection] = useState<'right' | 'left'>('right');
+
+  // Video recording states
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+  const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [useVideo, setUseVideo] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const previewRef = useRef<HTMLVideoElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
 
   const [formData, setFormData] = useState<ProposalData>({
     locationLat: 0,
@@ -53,7 +66,7 @@ export default function Home() {
     email: ''
   });
 
-  // Check local storage on mount — with loading spinner
+  // Check local storage on mount
   useEffect(() => {
     const checkSaved = async () => {
       try {
@@ -86,6 +99,15 @@ export default function Home() {
     checkSaved();
   }, []);
 
+  // Cleanup camera stream on unmount
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+      }
+    };
+  }, []);
+
   const handleInputChange = (field: keyof ProposalData, value: string | number) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     setError('');
@@ -97,52 +119,44 @@ export default function Home() {
     setError('');
 
     try {
-      // Try client-side regex first
       let lat: number | null = null;
       let lng: number | null = null;
       let locationName = '';
 
-      // Google Maps: @lat,lng
       const coordMatch = url.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
       if (coordMatch) {
         lat = parseFloat(coordMatch[1]);
         lng = parseFloat(coordMatch[2]);
       }
 
-      // Google Maps: ?q=lat,lng
       const queryMatch = url.match(/[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
       if (!lat && queryMatch) {
         lat = parseFloat(queryMatch[1]);
         lng = parseFloat(queryMatch[2]);
       }
 
-      // Apple Maps: ?ll=lat,lng
       const appleLl = url.match(/[?&]ll=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
       if (!lat && appleLl) {
         lat = parseFloat(appleLl[1]);
         lng = parseFloat(appleLl[2]);
       }
 
-      // Apple Maps: ?sll=lat,lng
       const appleSll = url.match(/[?&]sll=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
       if (!lat && appleSll) {
         lat = parseFloat(appleSll[1]);
         lng = parseFloat(appleSll[2]);
       }
 
-      // Google Maps place name
       const placeMatch = url.match(/\/place\/([^/@]+)/);
       if (placeMatch) {
         locationName = decodeURIComponent(placeMatch[1].replace(/\+/g, ' '));
       }
 
-      // Apple Maps place/address
       const applePlace = url.match(/maps\.apple\.com.*[?&](?:q|address)=([^&]+)/);
       if (applePlace && !locationName) {
         locationName = decodeURIComponent(applePlace[1].replace(/\+/g, ' '));
       }
 
-      // If we still don't have coordinates, try server-side (handles short links + AI)
       if (!lat || !lng) {
         const response = await fetch('/api/parse-location', {
           method: 'POST',
@@ -166,7 +180,7 @@ export default function Home() {
           locationName: locationName || `${lat!.toFixed(4)}, ${lng!.toFixed(4)}`
         }));
       } else {
-        setError('Could not extract location. Please try pasting coordinates directly (e.g., 40.7128, -74.0060)');
+        setError('Could not extract location. Please try coordinates directly (e.g., 40.7128, -74.0060)');
       }
     } catch {
       setError('Failed to parse location. Try entering coordinates manually.');
@@ -179,7 +193,6 @@ export default function Home() {
   const handleLocationPaste = async (e: React.ClipboardEvent<HTMLInputElement>) => {
     const pastedText = e.clipboardData.getData('text');
 
-    // Google Maps or Apple Maps links
     if (
       pastedText.includes('google.com/maps') ||
       pastedText.includes('goo.gl') ||
@@ -190,7 +203,6 @@ export default function Home() {
       e.preventDefault();
       await parseLocationUrl(pastedText);
     } else if (pastedText.match(/-?\d+\.?\d*,\s*-?\d+\.?\d*/)) {
-      // Direct coordinates like "40.7128, -74.0060"
       e.preventDefault();
       const coords = pastedText.split(',').map(c => parseFloat(c.trim()));
       if (coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
@@ -222,8 +234,12 @@ export default function Home() {
       setError('Please add a hint for your special person');
       return false;
     }
-    if (!formData.question.trim()) {
+    if (!useVideo && !formData.question.trim()) {
       setError('Please enter your question');
+      return false;
+    }
+    if (useVideo && !recordedBlob) {
+      setError('Please record your video proposal');
       return false;
     }
     if (!formData.email.trim() || !formData.email.includes('@')) {
@@ -231,6 +247,99 @@ export default function Home() {
       return false;
     }
     return true;
+  };
+
+  // ─── VIDEO RECORDING ───
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 720 } },
+        audio: true
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      setShowCamera(true);
+    } catch (err) {
+      console.error('Camera error:', err);
+      setError('Could not access camera. Please check permissions.');
+    }
+  };
+
+  const startRecording = () => {
+    if (!streamRef.current) return;
+    chunksRef.current = [];
+
+    const mediaRecorder = new MediaRecorder(streamRef.current, {
+      mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+        ? 'video/webm;codecs=vp9'
+        : 'video/webm'
+    });
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunksRef.current.push(e.data);
+    };
+
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+      setRecordedBlob(blob);
+      setRecordedUrl(URL.createObjectURL(blob));
+      setShowCamera(false);
+      // Stop camera
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+        streamRef.current = null;
+      }
+    };
+
+    mediaRecorderRef.current = mediaRecorder;
+    mediaRecorder.start();
+    setIsRecording(true);
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const deleteRecording = () => {
+    if (recordedUrl) URL.revokeObjectURL(recordedUrl);
+    setRecordedBlob(null);
+    setRecordedUrl(null);
+  };
+
+  const uploadVideo = async (proposalId: string): Promise<string | null> => {
+    if (!recordedBlob) return null;
+
+    setIsUploading(true);
+    try {
+      const fileName = `proposals/${proposalId}/video.webm`;
+      const { error: uploadError } = await supabase.storage
+        .from('proposal-videos')
+        .upload(fileName, recordedBlob, {
+          contentType: 'video/webm',
+          upsert: true
+        });
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        return null;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from('proposal-videos')
+        .getPublicUrl(fileName);
+
+      return urlData.publicUrl;
+    } catch (err) {
+      console.error('Video upload error:', err);
+      return null;
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const checkPaymentLoop = useCallback(() => {
@@ -280,7 +389,7 @@ export default function Home() {
           location_lng: formData.locationLng,
           location_name: formData.locationName,
           hint: formData.hint,
-          question: formData.question,
+          question: useVideo ? '💍 Watch my special message...' : formData.question,
           yes_message: formData.yesMessage,
           no_message: formData.noMessage,
           email: formData.email,
@@ -290,6 +399,17 @@ export default function Home() {
         .single();
 
       if (dbError) throw dbError;
+
+      // Upload video if recorded
+      if (useVideo && recordedBlob) {
+        const videoUrl = await uploadVideo(data.id);
+        if (videoUrl) {
+          await supabase
+            .from('proposals')
+            .update({ video_url: videoUrl })
+            .eq('id', data.id);
+        }
+      }
 
       setProposalId(data.id);
       localStorage.setItem('lastProposal', JSON.stringify({ id: data.id, email: formData.email }));
@@ -421,7 +541,6 @@ export default function Home() {
 
                 {error && <div className="error-message" style={{ marginTop: '12px' }}>{error}</div>}
               </div>
-
             </div>
 
             <div className="sticky-action-bar">
@@ -471,51 +590,308 @@ export default function Home() {
                   />
                 </div>
 
-                <div style={{ marginBottom: '12px' }}>
-                  <label className="form-label">Your Question</label>
-                  <div
-                    className="horizontal-scroll-container"
+                {/* Toggle: Text vs Video */}
+                <div style={{
+                  display: 'flex',
+                  gap: '8px',
+                  marginBottom: '16px',
+                  background: 'rgba(255,255,255,0.05)',
+                  borderRadius: '12px',
+                  padding: '4px'
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => setUseVideo(false)}
                     style={{
+                      flex: 1,
+                      padding: '10px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
                       display: 'flex',
-                      overflowX: 'auto',
-                      gap: '8px',
-                      paddingBottom: '8px',
-                      width: '100%',
-                      maxWidth: '100%',
-                      scrollbarWidth: 'none',
-                      msOverflowStyle: 'none'
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      transition: 'all 0.2s',
+                      background: !useVideo ? 'var(--rose-500)' : 'transparent',
+                      color: !useVideo ? '#fff' : 'rgba(255,255,255,0.5)'
                     }}
                   >
-                    {questionTemplates.map(q => (
+                    <Mail size={14} /> Text Question
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUseVideo(true)}
+                    style={{
+                      flex: 1,
+                      padding: '10px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      transition: 'all 0.2s',
+                      background: useVideo ? 'var(--rose-500)' : 'transparent',
+                      color: useVideo ? '#fff' : 'rgba(255,255,255,0.5)'
+                    }}
+                  >
+                    <Video size={14} /> Video Proposal
+                  </button>
+                </div>
+
+                {/* Text Question Section */}
+                {!useVideo && (
+                  <div style={{ marginBottom: '12px' }}>
+                    <label className="form-label">Your Question</label>
+                    <div
+                      className="horizontal-scroll-container"
+                      style={{
+                        display: 'flex',
+                        overflowX: 'auto',
+                        gap: '8px',
+                        paddingBottom: '8px',
+                        width: '100%',
+                        maxWidth: '100%',
+                        scrollbarWidth: 'none',
+                        msOverflowStyle: 'none'
+                      }}
+                    >
+                      {questionTemplates.map(q => (
+                        <button
+                          key={q}
+                          type="button"
+                          onClick={() => handleInputChange('question', q)}
+                          style={{
+                            padding: '8px 16px',
+                            fontSize: '13px',
+                            background: formData.question === q ? 'var(--rose-500)' : 'rgba(255,255,255,0.1)',
+                            border: 'none',
+                            borderRadius: '20px',
+                            color: '#fff',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            whiteSpace: 'nowrap',
+                            flex: '0 0 auto'
+                          }}
+                        >
+                          {q}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="text"
+                      className="input-field"
+                      placeholder="Or type your own question..."
+                      value={formData.question}
+                      onChange={(e) => handleInputChange('question', e.target.value)}
+                    />
+                  </div>
+                )}
+
+                {/* Video Recording Section */}
+                {useVideo && (
+                  <div style={{ marginBottom: '12px' }}>
+                    <label className="form-label">Record Your Proposal</label>
+
+                    {/* Camera Preview */}
+                    {showCamera && (
+                      <div style={{
+                        position: 'relative',
+                        borderRadius: '16px',
+                        overflow: 'hidden',
+                        marginBottom: '12px',
+                        border: isRecording ? '2px solid var(--rose-500)' : '2px solid rgba(255,255,255,0.15)'
+                      }}>
+                        <video
+                          ref={videoRef}
+                          autoPlay
+                          muted
+                          playsInline
+                          style={{
+                            width: '100%',
+                            aspectRatio: '1/1',
+                            objectFit: 'cover',
+                            display: 'block',
+                            transform: 'scaleX(-1)'
+                          }}
+                        />
+                        {isRecording && (
+                          <div style={{
+                            position: 'absolute',
+                            top: '12px',
+                            right: '12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            background: 'rgba(220, 38, 38, 0.9)',
+                            padding: '4px 10px',
+                            borderRadius: '20px',
+                            fontSize: '12px',
+                            fontWeight: 600
+                          }}>
+                            <div style={{
+                              width: '8px',
+                              height: '8px',
+                              borderRadius: '50%',
+                              background: '#fff',
+                              animation: 'pulse 1s infinite'
+                            }} />
+                            REC
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Recorded Preview */}
+                    {recordedUrl && !showCamera && (
+                      <div style={{
+                        position: 'relative',
+                        borderRadius: '16px',
+                        overflow: 'hidden',
+                        marginBottom: '12px',
+                        border: '2px solid rgba(52, 211, 153, 0.3)'
+                      }}>
+                        <video
+                          ref={previewRef}
+                          src={recordedUrl}
+                          controls
+                          playsInline
+                          style={{
+                            width: '100%',
+                            aspectRatio: '1/1',
+                            objectFit: 'cover',
+                            display: 'block'
+                          }}
+                        />
+                        <button
+                          onClick={deleteRecording}
+                          style={{
+                            position: 'absolute',
+                            top: '8px',
+                            right: '8px',
+                            background: 'rgba(220, 38, 38, 0.85)',
+                            border: 'none',
+                            borderRadius: '50%',
+                            width: '32px',
+                            height: '32px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            color: '#fff'
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Camera Controls */}
+                    {!recordedUrl && !showCamera && (
                       <button
-                        key={q}
                         type="button"
-                        onClick={() => handleInputChange('question', q)}
+                        onClick={startCamera}
                         style={{
-                          padding: '8px 16px',
-                          fontSize: '13px',
-                          background: formData.question === q ? 'var(--rose-500)' : 'rgba(255,255,255,0.1)',
-                          border: 'none',
-                          borderRadius: '20px',
-                          color: '#fff',
+                          width: '100%',
+                          padding: '40px 20px',
+                          border: '2px dashed rgba(255,255,255,0.2)',
+                          borderRadius: '16px',
+                          background: 'rgba(255,255,255,0.03)',
+                          color: 'rgba(255,255,255,0.5)',
                           cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '8px',
+                          fontSize: '14px',
                           transition: 'all 0.2s',
-                          whiteSpace: 'nowrap',
-                          flex: '0 0 auto'
+                          marginBottom: '12px'
                         }}
                       >
-                        {q}
+                        <Camera size={32} style={{ color: 'var(--rose-400)' }} />
+                        Tap to open camera
                       </button>
-                    ))}
+                    )}
+
+                    {showCamera && (
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        {!isRecording ? (
+                          <button
+                            type="button"
+                            onClick={startRecording}
+                            className="btn-primary"
+                            style={{
+                              flex: 1,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '8px'
+                            }}
+                          >
+                            <div style={{
+                              width: '12px',
+                              height: '12px',
+                              borderRadius: '50%',
+                              background: '#dc2626'
+                            }} />
+                            Start Recording
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={stopRecording}
+                            style={{
+                              flex: 1,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '8px',
+                              padding: '12px',
+                              borderRadius: '50px',
+                              border: '2px solid #dc2626',
+                              background: 'rgba(220, 38, 38, 0.15)',
+                              color: '#fff',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              fontSize: '14px'
+                            }}
+                          >
+                            <VideoOff size={16} /> Stop Recording
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {recordedUrl && !showCamera && (
+                      <button
+                        type="button"
+                        onClick={() => { deleteRecording(); startCamera(); }}
+                        style={{
+                          width: '100%',
+                          background: 'rgba(255,255,255,0.08)',
+                          border: '1px solid rgba(255,255,255,0.15)',
+                          padding: '10px',
+                          borderRadius: '50px',
+                          color: 'rgba(255,255,255,0.6)',
+                          fontSize: '13px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        <RefreshCcw size={14} /> Re-record
+                      </button>
+                    )}
                   </div>
-                  <input
-                    type="text"
-                    className="input-field"
-                    placeholder="Or type your own question..."
-                    value={formData.question}
-                    onChange={(e) => handleInputChange('question', e.target.value)}
-                  />
-                </div>
+                )}
 
                 <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
                   <div style={{ flex: 1 }}>
@@ -531,7 +907,6 @@ export default function Home() {
                       style={{ padding: '12px 16px', borderColor: 'rgba(244, 63, 108, 0.4)' }}
                     />
                   </div>
-
                   <div style={{ flex: 1 }}>
                     <label className="form-label" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       No Message <HeartCrack size={12} className="text-gray-400" />
@@ -549,7 +924,6 @@ export default function Home() {
 
                 {error && <div className="error-message" style={{ marginTop: '12px' }}>{error}</div>}
               </div>
-
             </div>
 
             <div className="sticky-action-bar">
@@ -564,104 +938,30 @@ export default function Home() {
                 className="btn-primary"
                 style={{ flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                 onClick={generateProposal}
-                disabled={loading}
+                disabled={loading || isUploading}
               >
-                {loading ? <Loader2 className="animate-spin" size={20} /> : <>Generate QR  <QrCode size={18} /></>}
+                {loading || isUploading ? (
+                  <><Loader2 className="animate-spin" size={20} /> {isUploading ? 'Uploading...' : 'Creating...'}</>
+                ) : (
+                  <>Generate QR <QrCode size={18} /></>
+                )}
               </button>
             </div>
           </>
         )}
 
-        {/* Step 3: QR Code + Activation */}
+        {/* Step 3: QR Code with integrated payment */}
         {step === 3 && proposalId && (
           <>
             <div className={`form-content ${animationDirection === 'right' ? 'slide-in-right' : 'slide-in-left'}`}>
-              {/* QR Code */}
-              <div style={{ marginBottom: '16px' }}>
-                <QRCodeDisplay
-                  proposalId={proposalId}
-                  question={formData.question}
-                />
-              </div>
-
-              {/* Unpaid — clean, simple activation prompt */}
-              {!isPaid && (
-                <div className="glass-card slide-in-right" style={{
-                  padding: '24px',
-                  textAlign: 'center',
-                  background: 'rgba(20, 5, 20, 0.85)',
-                  border: '1px solid rgba(244, 63, 108, 0.3)',
-                }}>
-                  <Lock className="text-rose-400" size={28} style={{ margin: '0 auto 12px' }} />
-                  <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '15px', marginBottom: '20px', fontWeight: 500 }}>
-                    Your proposal is not live yet
-                  </p>
-
-                  <a
-                    href={`https://carenote.gumroad.com/l/uizjdd?email=${encodeURIComponent(formData.email)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn-primary"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '10px',
-                      width: '100%',
-                      padding: '14px',
-                      background: 'linear-gradient(135deg, var(--rose-500), var(--rose-600))',
-                      color: '#fff',
-                      fontWeight: 700,
-                      fontSize: '16px',
-                      marginBottom: '12px',
-                      boxShadow: '0 4px 20px rgba(244, 63, 108, 0.35)'
-                    }}
-                  >
-                    <CreditCard size={18} /> Make It Live — $28 <ExternalLink size={14} />
-                  </a>
-
-                  <button
-                    onClick={checkPaymentLoop}
-                    disabled={isCheckingPayment}
-                    style={{
-                      background: 'rgba(255,255,255,0.08)',
-                      border: '1px solid rgba(255,255,255,0.15)',
-                      color: 'rgba(255,255,255,0.7)',
-                      padding: '10px',
-                      borderRadius: '50px',
-                      cursor: isCheckingPayment ? 'wait' : 'pointer',
-                      fontSize: '13px',
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      transition: 'all 0.2s'
-                    }}
-                  >
-                    {isCheckingPayment ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      <RefreshCcw size={14} />
-                    )}
-                    {isCheckingPayment ? 'Checking...' : 'I Paid, Refresh Status'}
-                  </button>
-                </div>
-              )}
-
-              {/* Paid — success state */}
-              {isPaid && (
-                <div className="glass-card fade-in" style={{
-                  padding: '20px',
-                  textAlign: 'center',
-                  border: '1px solid rgba(52, 211, 153, 0.3)',
-                  background: 'rgba(52, 211, 153, 0.05)'
-                }}>
-                  <CheckCircle className="text-green-400" size={28} style={{ margin: '0 auto 8px', color: '#34d399' }} />
-                  <p style={{ color: '#34d399', fontWeight: 600, fontSize: '15px' }}>Your proposal is live! 🎉</p>
-                </div>
-              )}
-
+              <QRCodeDisplay
+                proposalId={proposalId}
+                question={formData.question}
+                isPaid={isPaid}
+                isCheckingPayment={isCheckingPayment}
+                email={formData.email}
+                onCheckPayment={checkPaymentLoop}
+              />
             </div>
 
             <div className="sticky-action-bar">
@@ -680,6 +980,9 @@ export default function Home() {
                     noMessage: "I understand. Thank you for being honest with me. 💔",
                     email: ''
                   });
+                  setRecordedBlob(null);
+                  setRecordedUrl(null);
+                  setUseVideo(false);
                   localStorage.removeItem('lastProposal');
                   goToStep(1);
                 }}
@@ -704,6 +1007,6 @@ export default function Home() {
       }}>
         Made with <Heart size={10} fill="currentColor" /> for lovers everywhere
       </div>
-    </div >
+    </div>
   );
 }

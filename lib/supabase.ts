@@ -17,4 +17,6 @@ export interface Proposal {
     created_at: string;
     response?: 'yes' | 'no' | null;
     responded_at?: string;
+    is_paid?: boolean;
+    video_url?: string | null;
 }

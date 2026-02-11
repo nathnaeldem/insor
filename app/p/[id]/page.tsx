@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { MapPin, Heart, X, Sparkles, Navigation, Mail, AlertCircle, HeartCrack, Loader2, Gem, CheckCircle2 } from 'lucide-react';
+import { MapPin, Heart, X, Sparkles, Navigation, Mail, AlertCircle, HeartCrack, Loader2, Gem, CheckCircle2, Play } from 'lucide-react';
 
 interface ProposalData {
     id: string;
@@ -16,6 +16,7 @@ interface ProposalData {
     no_message: string;
     response: 'yes' | 'no' | null;
     is_paid: boolean;
+    video_url?: string | null;
 }
 
 type Stage = 'loading' | 'not_paid' | 'hint' | 'distance' | 'question' | 'response' | 'already_answered' | 'error';
@@ -71,7 +72,7 @@ export default function ProposalPage() {
 
     // Calculate distance between two points
     const calculateDistance = useCallback((lat1: number, lng1: number, lat2: number, lng2: number): number => {
-        const R = 6371e3; // Earth's radius in meters
+        const R = 6371e3;
         const φ1 = lat1 * Math.PI / 180;
         const φ2 = lat2 * Math.PI / 180;
         const Δφ = (lat2 - lat1) * Math.PI / 180;
@@ -82,7 +83,7 @@ export default function ProposalPage() {
             Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-        return R * c; // Distance in meters
+        return R * c;
     }, []);
 
     // Watch user's location
@@ -130,7 +131,7 @@ export default function ProposalPage() {
         };
     }, [proposal, calculateDistance]);
 
-    // Handle response — save to DB + send email notification
+    // Handle response
     const handleResponse = async (answer: 'yes' | 'no') => {
         setIsSaving(true);
         try {
@@ -142,7 +143,7 @@ export default function ProposalPage() {
                 })
                 .eq('id', proposalId);
 
-            // Fire email notification (fire-and-forget)
+            // Fire email notification
             fetch('/api/notify', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -159,18 +160,11 @@ export default function ProposalPage() {
     };
 
     const formatDistance = (meters: number): string => {
-        if (meters < 1000) {
-            return `${Math.round(meters)} meters`;
-        }
+        if (meters < 1000) return `${Math.round(meters)} meters`;
         return `${(meters / 1000).toFixed(1)} km`;
     };
 
-    // Skip location check and go directly to question
-    const skipToQuestion = () => {
-        setStage('question');
-    };
-
-    // Confirm arrival (the "I'm here!" button)
+    const skipToQuestion = () => setStage('question');
     const confirmArrival = () => {
         setWatchingLocation(false);
         setStage('question');
@@ -198,7 +192,7 @@ export default function ProposalPage() {
                     </div>
                 )}
 
-                {/* Not Paid Stage */}
+                {/* Not Paid */}
                 {stage === 'not_paid' && (
                     <div className="glass-card fade-in" style={{ padding: '40px', textAlign: 'center', maxWidth: '400px' }}>
                         <div style={{ fontSize: '64px', marginBottom: '20px' }}>🔒</div>
@@ -332,7 +326,6 @@ export default function ProposalPage() {
                         </div>
 
                         <div className="sticky-action-bar" style={{ flexDirection: 'column', gap: '8px' }}>
-                            {/* "I'm Here!" button */}
                             <button
                                 className="btn-primary"
                                 style={{
@@ -364,17 +357,66 @@ export default function ProposalPage() {
                     </>
                 )}
 
-                {/* Question Stage */}
+                {/* Question Stage — Text or Video */}
                 {stage === 'question' && proposal && (
                     <>
-                        <div className="glass-card celebrate" style={{ padding: '40px', textAlign: 'center', maxWidth: '420px', border: '2px solid rgba(244, 63, 108, 0.5)' }}>
-                            <Gem className="text-rose-300" size={80} style={{ margin: '0 auto 20px', filter: 'drop-shadow(0 0 10px rgba(244,63,108,0.5))' }} />
-
-                            <h2 className="text-gradient-gold" style={{ fontSize: '32px', marginBottom: '24px', lineHeight: 1.3 }}>
-                                {proposal.question}
-                            </h2>
+                        <div className="glass-card celebrate" style={{
+                            padding: proposal.video_url ? '20px' : '40px',
+                            textAlign: 'center',
+                            maxWidth: '420px',
+                            border: '2px solid rgba(244, 63, 108, 0.5)'
+                        }}>
+                            {/* Video Proposal */}
+                            {proposal.video_url ? (
+                                <>
+                                    <p style={{
+                                        fontSize: '14px',
+                                        color: 'var(--rose-300)',
+                                        marginBottom: '12px',
+                                        fontWeight: 500
+                                    }}>
+                                        💌 A special message for you...
+                                    </p>
+                                    <div style={{
+                                        borderRadius: '16px',
+                                        overflow: 'hidden',
+                                        marginBottom: '4px',
+                                        border: '2px solid rgba(244, 63, 108, 0.3)'
+                                    }}>
+                                        <video
+                                            src={proposal.video_url}
+                                            controls
+                                            playsInline
+                                            autoPlay
+                                            style={{
+                                                width: '100%',
+                                                aspectRatio: '1/1',
+                                                objectFit: 'cover',
+                                                display: 'block',
+                                                background: '#000'
+                                            }}
+                                        />
+                                    </div>
+                                </>
+                            ) : (
+                                /* Text Proposal */
+                                <>
+                                    <Gem className="text-rose-300" size={80} style={{
+                                        margin: '0 auto 20px',
+                                        filter: 'drop-shadow(0 0 10px rgba(244,63,108,0.5))'
+                                    }} />
+                                    <h2 className="text-gradient-gold" style={{
+                                        fontSize: '32px',
+                                        marginBottom: '24px',
+                                        lineHeight: 1.3
+                                    }}>
+                                        {proposal.question}
+                                    </h2>
+                                </>
+                            )}
                         </div>
 
+                        {/* Yes / No Buttons — always below the content */}
                         <div className="sticky-action-bar">
                             <button
                                 className="btn-yes"
