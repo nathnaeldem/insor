@@ -14,9 +14,9 @@ import {
   Loader2,
   Video,
   VideoOff,
-  Play,
   Trash2,
-  Camera
+  Camera,
+  Upload
 } from 'lucide-react';
 import QRCodeDisplay from '../components/QRCodeDisplay';
 
@@ -42,25 +42,24 @@ export default function Home() {
   const [isCheckingPayment, setIsCheckingPayment] = useState(false);
   const [animationDirection, setAnimationDirection] = useState<'right' | 'left'>('right');
 
-  // Video recording states
+  // Video states
   const [isRecording, setIsRecording] = useState(false);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [useVideo, setUseVideo] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const previewRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState<ProposalData>({
     locationLat: 0,
     locationLng: 0,
     locationName: '',
     hint: '',
-    question: 'Will you marry me?',
+    question: '💍 Watch my special message...',
     yesMessage: "You've made me the happiest person alive! 💍❤️",
     noMessage: "I understand. Thank you for being honest with me. 💔",
     email: ''
@@ -124,38 +123,22 @@ export default function Home() {
       let locationName = '';
 
       const coordMatch = url.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
-      if (coordMatch) {
-        lat = parseFloat(coordMatch[1]);
-        lng = parseFloat(coordMatch[2]);
-      }
+      if (coordMatch) { lat = parseFloat(coordMatch[1]); lng = parseFloat(coordMatch[2]); }
 
       const queryMatch = url.match(/[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
-      if (!lat && queryMatch) {
-        lat = parseFloat(queryMatch[1]);
-        lng = parseFloat(queryMatch[2]);
-      }
+      if (!lat && queryMatch) { lat = parseFloat(queryMatch[1]); lng = parseFloat(queryMatch[2]); }
 
       const appleLl = url.match(/[?&]ll=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
-      if (!lat && appleLl) {
-        lat = parseFloat(appleLl[1]);
-        lng = parseFloat(appleLl[2]);
-      }
+      if (!lat && appleLl) { lat = parseFloat(appleLl[1]); lng = parseFloat(appleLl[2]); }
 
       const appleSll = url.match(/[?&]sll=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
-      if (!lat && appleSll) {
-        lat = parseFloat(appleSll[1]);
-        lng = parseFloat(appleSll[2]);
-      }
+      if (!lat && appleSll) { lat = parseFloat(appleSll[1]); lng = parseFloat(appleSll[2]); }
 
       const placeMatch = url.match(/\/place\/([^/@]+)/);
-      if (placeMatch) {
-        locationName = decodeURIComponent(placeMatch[1].replace(/\+/g, ' '));
-      }
+      if (placeMatch) locationName = decodeURIComponent(placeMatch[1].replace(/\+/g, ' '));
 
       const applePlace = url.match(/maps\.apple\.com.*[?&](?:q|address)=([^&]+)/);
-      if (applePlace && !locationName) {
-        locationName = decodeURIComponent(applePlace[1].replace(/\+/g, ' '));
-      }
+      if (applePlace && !locationName) locationName = decodeURIComponent(applePlace[1].replace(/\+/g, ' '));
 
       if (!lat || !lng) {
         const response = await fetch('/api/parse-location', {
@@ -163,11 +146,9 @@ export default function Home() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url })
         });
-
         if (response.ok) {
           const data = await response.json();
-          lat = data.lat;
-          lng = data.lng;
+          lat = data.lat; lng = data.lng;
           locationName = data.name || locationName;
         }
       }
@@ -180,10 +161,10 @@ export default function Home() {
           locationName: locationName || `${lat!.toFixed(4)}, ${lng!.toFixed(4)}`
         }));
       } else {
-        setError('Could not extract location. Please try coordinates directly (e.g., 40.7128, -74.0060)');
+        setError('Could not extract location. Try pasting coordinates directly.');
       }
     } catch {
-      setError('Failed to parse location. Try entering coordinates manually.');
+      setError('Failed to parse location. Try coordinates manually.');
     } finally {
       setLoading(false);
       setIsParsingLocation(false);
@@ -192,12 +173,9 @@ export default function Home() {
 
   const handleLocationPaste = async (e: React.ClipboardEvent<HTMLInputElement>) => {
     const pastedText = e.clipboardData.getData('text');
-
     if (
-      pastedText.includes('google.com/maps') ||
-      pastedText.includes('goo.gl') ||
-      pastedText.includes('maps.app') ||
-      pastedText.includes('maps.apple.com') ||
+      pastedText.includes('google.com/maps') || pastedText.includes('goo.gl') ||
+      pastedText.includes('maps.app') || pastedText.includes('maps.apple.com') ||
       pastedText.includes('apple.co')
     ) {
       e.preventDefault();
@@ -207,9 +185,7 @@ export default function Home() {
       const coords = pastedText.split(',').map(c => parseFloat(c.trim()));
       if (coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
         setFormData(prev => ({
-          ...prev,
-          locationLat: coords[0],
-          locationLng: coords[1],
+          ...prev, locationLat: coords[0], locationLng: coords[1],
           locationName: prev.locationName || `${coords[0].toFixed(4)}, ${coords[1].toFixed(4)}`
         }));
       }
@@ -234,12 +210,8 @@ export default function Home() {
       setError('Please add a hint for your special person');
       return false;
     }
-    if (!useVideo && !formData.question.trim()) {
-      setError('Please enter your question');
-      return false;
-    }
-    if (useVideo && !recordedBlob) {
-      setError('Please record your video proposal');
+    if (!recordedBlob) {
+      setError('Please record or upload your video proposal');
       return false;
     }
     if (!formData.email.trim() || !formData.email.includes('@')) {
@@ -286,7 +258,6 @@ export default function Home() {
       setRecordedBlob(blob);
       setRecordedUrl(URL.createObjectURL(blob));
       setShowCamera(false);
-      // Stop camera
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(t => t.stop());
         streamRef.current = null;
@@ -311,16 +282,39 @@ export default function Home() {
     setRecordedUrl(null);
   };
 
+  // ─── VIDEO UPLOAD ───
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('video/')) {
+      setError('Please upload a video file');
+      return;
+    }
+
+    // Validate file size (max 50MB)
+    if (file.size > 50 * 1024 * 1024) {
+      setError('Video must be under 50MB');
+      return;
+    }
+
+    setError('');
+    setRecordedBlob(file);
+    setRecordedUrl(URL.createObjectURL(file));
+  };
+
   const uploadVideo = async (proposalId: string): Promise<string | null> => {
     if (!recordedBlob) return null;
 
     setIsUploading(true);
     try {
-      const fileName = `proposals/${proposalId}/video.webm`;
+      const ext = recordedBlob.type.includes('mp4') ? 'mp4' : 'webm';
+      const fileName = `proposals/${proposalId}/video.${ext}`;
       const { error: uploadError } = await supabase.storage
         .from('proposal-videos')
         .upload(fileName, recordedBlob, {
-          contentType: 'video/webm',
+          contentType: recordedBlob.type,
           upsert: true
         });
 
@@ -344,14 +338,12 @@ export default function Home() {
 
   const checkPaymentLoop = useCallback(() => {
     if (!proposalId) return;
-
     setIsCheckingPayment(true);
     let attempts = 0;
     const maxAttempts = 5;
 
     const interval = setInterval(async () => {
       attempts++;
-
       try {
         const { data } = await supabase
           .from('proposals')
@@ -389,7 +381,7 @@ export default function Home() {
           location_lng: formData.locationLng,
           location_name: formData.locationName,
           hint: formData.hint,
-          question: useVideo ? '💍 Watch my special message...' : formData.question,
+          question: '💍 Watch my special message...',
           yes_message: formData.yesMessage,
           no_message: formData.noMessage,
           email: formData.email,
@@ -400,8 +392,8 @@ export default function Home() {
 
       if (dbError) throw dbError;
 
-      // Upload video if recorded
-      if (useVideo && recordedBlob) {
+      // Upload video
+      if (recordedBlob) {
         const videoUrl = await uploadVideo(data.id);
         if (videoUrl) {
           await supabase
@@ -422,14 +414,6 @@ export default function Home() {
       setLoading(false);
     }
   };
-
-  const questionTemplates = [
-    'Will you marry me?',
-    'Will you be my Valentine?',
-    'Will you be my girlfriend?',
-    'Will you be my boyfriend?',
-    'Will you spend forever with me?'
-  ];
 
   // ─── INITIAL LOADING SPINNER ───
   if (isInitialLoading) {
@@ -455,23 +439,18 @@ export default function Home() {
         {/* Step Indicator */}
         <div className="step-indicator" style={{ marginBottom: '16px' }}>
           {[1, 2, 3].map(s => (
-            <div
-              key={s}
-              className={`step-dot ${step === s ? 'active' : ''} ${step > s ? 'completed' : ''}`}
-            />
+            <div key={s} className={`step-dot ${step === s ? 'active' : ''} ${step > s ? 'completed' : ''}`} />
           ))}
         </div>
 
-        {/* Step 1: Location */}
+        {/* ═══════════ STEP 1: LOCATION ═══════════ */}
         {step === 1 && (
           <>
             <div className={`form-content ${animationDirection === 'right' ? 'slide-in-right' : 'slide-in-left'}`}>
               <div className="glass-card" style={{ padding: '20px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
                   <MapPin className="text-rose-400" size={24} />
-                  <h2 className="text-gradient-purple" style={{ fontSize: '20px' }}>
-                    Choose The Place
-                  </h2>
+                  <h2 className="text-gradient-purple" style={{ fontSize: '20px' }}>Choose The Place</h2>
                 </div>
 
                 <p style={{ color: 'var(--text-tertiary)', fontSize: '14px', marginBottom: '16px', textAlign: 'center' }}>
@@ -502,9 +481,7 @@ export default function Home() {
                         const coords = val.split(',').map(c => parseFloat(c.trim()));
                         if (coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
                           setFormData(prev => ({
-                            ...prev,
-                            locationLat: coords[0],
-                            locationLng: coords[1],
+                            ...prev, locationLat: coords[0], locationLng: coords[1],
                             locationName: prev.locationName || `${coords[0].toFixed(4)}, ${coords[1].toFixed(4)}`
                           }));
                         }
@@ -512,12 +489,7 @@ export default function Home() {
                       style={{ paddingRight: isParsingLocation ? '44px' : undefined }}
                     />
                     {isParsingLocation && (
-                      <div style={{
-                        position: 'absolute',
-                        right: '12px',
-                        top: '50%',
-                        transform: 'translateY(-50%)'
-                      }}>
+                      <div style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)' }}>
                         <Loader2 className="animate-spin text-rose-400" size={20} />
                       </div>
                     )}
@@ -556,16 +528,14 @@ export default function Home() {
           </>
         )}
 
-        {/* Step 2: Question & Hint */}
+        {/* ═══════════ STEP 2: VIDEO + DETAILS ═══════════ */}
         {step === 2 && (
           <>
             <div className={`form-content ${animationDirection === 'right' ? 'slide-in-right' : 'slide-in-left'}`}>
               <div className="glass-card" style={{ padding: '20px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
-                  <Mail className="text-rose-400" size={24} />
-                  <h2 className="text-gradient-gold" style={{ fontSize: '20px' }}>
-                    The Question
-                  </h2>
+                  <Video className="text-rose-400" size={24} />
+                  <h2 className="text-gradient-gold" style={{ fontSize: '20px' }}>Your Proposal</h2>
                 </div>
 
                 <div style={{ marginBottom: '12px' }}>
@@ -590,309 +560,220 @@ export default function Home() {
                   />
                 </div>
 
-                {/* Toggle: Text vs Video */}
-                <div style={{
-                  display: 'flex',
-                  gap: '8px',
-                  marginBottom: '16px',
-                  background: 'rgba(255,255,255,0.05)',
-                  borderRadius: '12px',
-                  padding: '4px'
-                }}>
-                  <button
-                    type="button"
-                    onClick={() => setUseVideo(false)}
-                    style={{
-                      flex: 1,
-                      padding: '10px',
-                      borderRadius: '10px',
-                      border: 'none',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px',
-                      transition: 'all 0.2s',
-                      background: !useVideo ? 'var(--rose-500)' : 'transparent',
-                      color: !useVideo ? '#fff' : 'rgba(255,255,255,0.5)'
-                    }}
-                  >
-                    <Mail size={14} /> Text Question
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setUseVideo(true)}
-                    style={{
-                      flex: 1,
-                      padding: '10px',
-                      borderRadius: '10px',
-                      border: 'none',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px',
-                      transition: 'all 0.2s',
-                      background: useVideo ? 'var(--rose-500)' : 'transparent',
-                      color: useVideo ? '#fff' : 'rgba(255,255,255,0.5)'
-                    }}
-                  >
-                    <Video size={14} /> Video Proposal
-                  </button>
-                </div>
+                {/* ── VIDEO SECTION ── */}
+                <div style={{ marginBottom: '12px' }}>
+                  <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Video size={14} className="text-rose-400" /> Record or Upload Your Proposal
+                  </label>
 
-                {/* Text Question Section */}
-                {!useVideo && (
-                  <div style={{ marginBottom: '12px' }}>
-                    <label className="form-label">Your Question</label>
-                    <div
-                      className="horizontal-scroll-container"
-                      style={{
-                        display: 'flex',
-                        overflowX: 'auto',
-                        gap: '8px',
-                        paddingBottom: '8px',
-                        width: '100%',
-                        maxWidth: '100%',
-                        scrollbarWidth: 'none',
-                        msOverflowStyle: 'none'
-                      }}
-                    >
-                      {questionTemplates.map(q => (
-                        <button
-                          key={q}
-                          type="button"
-                          onClick={() => handleInputChange('question', q)}
-                          style={{
-                            padding: '8px 16px',
-                            fontSize: '13px',
-                            background: formData.question === q ? 'var(--rose-500)' : 'rgba(255,255,255,0.1)',
-                            border: 'none',
-                            borderRadius: '20px',
-                            color: '#fff',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s',
-                            whiteSpace: 'nowrap',
-                            flex: '0 0 auto'
-                          }}
-                        >
-                          {q}
-                        </button>
-                      ))}
-                    </div>
-                    <input
-                      type="text"
-                      className="input-field"
-                      placeholder="Or type your own question..."
-                      value={formData.question}
-                      onChange={(e) => handleInputChange('question', e.target.value)}
-                    />
-                  </div>
-                )}
-
-                {/* Video Recording Section */}
-                {useVideo && (
-                  <div style={{ marginBottom: '12px' }}>
-                    <label className="form-label">Record Your Proposal</label>
-
-                    {/* Camera Preview */}
-                    {showCamera && (
-                      <div style={{
-                        position: 'relative',
-                        borderRadius: '16px',
-                        overflow: 'hidden',
-                        marginBottom: '12px',
-                        border: isRecording ? '2px solid var(--rose-500)' : '2px solid rgba(255,255,255,0.15)'
-                      }}>
-                        <video
-                          ref={videoRef}
-                          autoPlay
-                          muted
-                          playsInline
-                          style={{
-                            width: '100%',
-                            aspectRatio: '1/1',
-                            objectFit: 'cover',
-                            display: 'block',
-                            transform: 'scaleX(-1)'
-                          }}
-                        />
-                        {isRecording && (
+                  {/* Camera Preview (while recording) */}
+                  {showCamera && (
+                    <div style={{
+                      position: 'relative',
+                      borderRadius: '16px',
+                      overflow: 'hidden',
+                      marginBottom: '12px',
+                      border: isRecording ? '2px solid var(--rose-500)' : '2px solid rgba(255,255,255,0.15)'
+                    }}>
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        muted
+                        playsInline
+                        style={{
+                          width: '100%',
+                          aspectRatio: '1/1',
+                          objectFit: 'cover',
+                          display: 'block',
+                          transform: 'scaleX(-1)'
+                        }}
+                      />
+                      {isRecording && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '12px',
+                          right: '12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          background: 'rgba(220, 38, 38, 0.9)',
+                          padding: '4px 10px',
+                          borderRadius: '20px',
+                          fontSize: '12px',
+                          fontWeight: 600
+                        }}>
                           <div style={{
-                            position: 'absolute',
-                            top: '12px',
-                            right: '12px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            background: 'rgba(220, 38, 38, 0.9)',
-                            padding: '4px 10px',
-                            borderRadius: '20px',
-                            fontSize: '12px',
-                            fontWeight: 600
-                          }}>
-                            <div style={{
-                              width: '8px',
-                              height: '8px',
-                              borderRadius: '50%',
-                              background: '#fff',
-                              animation: 'pulse 1s infinite'
-                            }} />
-                            REC
-                          </div>
-                        )}
-                      </div>
-                    )}
+                            width: '8px', height: '8px', borderRadius: '50%',
+                            background: '#fff', animation: 'pulse 1s infinite'
+                          }} />
+                          REC
+                        </div>
+                      )}
+                    </div>
+                  )}
 
-                    {/* Recorded Preview */}
-                    {recordedUrl && !showCamera && (
-                      <div style={{
-                        position: 'relative',
-                        borderRadius: '16px',
-                        overflow: 'hidden',
-                        marginBottom: '12px',
-                        border: '2px solid rgba(52, 211, 153, 0.3)'
-                      }}>
-                        <video
-                          ref={previewRef}
-                          src={recordedUrl}
-                          controls
-                          playsInline
-                          style={{
-                            width: '100%',
-                            aspectRatio: '1/1',
-                            objectFit: 'cover',
-                            display: 'block'
-                          }}
-                        />
-                        <button
-                          onClick={deleteRecording}
-                          style={{
-                            position: 'absolute',
-                            top: '8px',
-                            right: '8px',
-                            background: 'rgba(220, 38, 38, 0.85)',
-                            border: 'none',
-                            borderRadius: '50%',
-                            width: '32px',
-                            height: '32px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                            color: '#fff'
-                          }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    )}
+                  {/* Recorded / Uploaded Preview */}
+                  {recordedUrl && !showCamera && (
+                    <div style={{
+                      position: 'relative',
+                      borderRadius: '16px',
+                      overflow: 'hidden',
+                      marginBottom: '12px',
+                      border: '2px solid rgba(52, 211, 153, 0.3)'
+                    }}>
+                      <video
+                        src={recordedUrl}
+                        controls
+                        playsInline
+                        style={{
+                          width: '100%',
+                          aspectRatio: '1/1',
+                          objectFit: 'cover',
+                          display: 'block',
+                          background: '#000'
+                        }}
+                      />
+                      <button
+                        onClick={deleteRecording}
+                        style={{
+                          position: 'absolute', top: '8px', right: '8px',
+                          background: 'rgba(220, 38, 38, 0.85)',
+                          border: 'none', borderRadius: '50%',
+                          width: '32px', height: '32px',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          cursor: 'pointer', color: '#fff'
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  )}
 
-                    {/* Camera Controls */}
-                    {!recordedUrl && !showCamera && (
+                  {/* Record / Upload Buttons — only show if no video yet */}
+                  {!recordedUrl && !showCamera && (
+                    <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
                       <button
                         type="button"
                         onClick={startCamera}
                         style={{
-                          width: '100%',
-                          padding: '40px 20px',
-                          border: '2px dashed rgba(255,255,255,0.2)',
+                          flex: 1,
+                          padding: '28px 12px',
+                          border: '2px dashed rgba(244, 63, 108, 0.3)',
                           borderRadius: '16px',
-                          background: 'rgba(255,255,255,0.03)',
-                          color: 'rgba(255,255,255,0.5)',
+                          background: 'rgba(244, 63, 108, 0.05)',
+                          color: 'rgba(255,255,255,0.7)',
                           cursor: 'pointer',
                           display: 'flex',
                           flexDirection: 'column',
                           alignItems: 'center',
                           gap: '8px',
-                          fontSize: '14px',
-                          transition: 'all 0.2s',
-                          marginBottom: '12px'
+                          fontSize: '13px',
+                          fontWeight: 500,
+                          transition: 'all 0.2s'
                         }}
                       >
-                        <Camera size={32} style={{ color: 'var(--rose-400)' }} />
-                        Tap to open camera
+                        <Camera size={28} style={{ color: 'var(--rose-400)' }} />
+                        Record
                       </button>
-                    )}
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        style={{
+                          flex: 1,
+                          padding: '28px 12px',
+                          border: '2px dashed rgba(139, 92, 246, 0.3)',
+                          borderRadius: '16px',
+                          background: 'rgba(139, 92, 246, 0.05)',
+                          color: 'rgba(255,255,255,0.7)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '8px',
+                          fontSize: '13px',
+                          fontWeight: 500,
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        <Upload size={28} style={{ color: 'var(--purple-400)' }} />
+                        Upload
+                      </button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="video/*"
+                        onChange={handleFileUpload}
+                        style={{ display: 'none' }}
+                      />
+                    </div>
+                  )}
 
-                    {showCamera && (
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        {!isRecording ? (
-                          <button
-                            type="button"
-                            onClick={startRecording}
-                            className="btn-primary"
-                            style={{
-                              flex: 1,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '8px'
-                            }}
-                          >
-                            <div style={{
-                              width: '12px',
-                              height: '12px',
-                              borderRadius: '50%',
-                              background: '#dc2626'
-                            }} />
-                            Start Recording
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={stopRecording}
-                            style={{
-                              flex: 1,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '8px',
-                              padding: '12px',
-                              borderRadius: '50px',
-                              border: '2px solid #dc2626',
-                              background: 'rgba(220, 38, 38, 0.15)',
-                              color: '#fff',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              fontSize: '14px'
-                            }}
-                          >
-                            <VideoOff size={16} /> Stop Recording
-                          </button>
-                        )}
-                      </div>
-                    )}
+                  {/* Camera Controls */}
+                  {showCamera && (
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                      {!isRecording ? (
+                        <button
+                          type="button"
+                          onClick={startRecording}
+                          className="btn-primary"
+                          style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                        >
+                          <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#dc2626' }} />
+                          Start Recording
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={stopRecording}
+                          style={{
+                            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                            padding: '12px', borderRadius: '50px', border: '2px solid #dc2626',
+                            background: 'rgba(220, 38, 38, 0.15)', color: '#fff',
+                            fontWeight: 600, cursor: 'pointer', fontSize: '14px'
+                          }}
+                        >
+                          <VideoOff size={16} /> Stop Recording
+                        </button>
+                      )}
+                    </div>
+                  )}
 
-                    {recordedUrl && !showCamera && (
+                  {/* Re-record / Re-upload after recording */}
+                  {recordedUrl && !showCamera && (
+                    <div style={{ display: 'flex', gap: '8px' }}>
                       <button
                         type="button"
                         onClick={() => { deleteRecording(); startCamera(); }}
                         style={{
-                          width: '100%',
-                          background: 'rgba(255,255,255,0.08)',
+                          flex: 1, background: 'rgba(255,255,255,0.08)',
                           border: '1px solid rgba(255,255,255,0.15)',
-                          padding: '10px',
-                          borderRadius: '50px',
-                          color: 'rgba(255,255,255,0.6)',
-                          fontSize: '13px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px'
+                          padding: '10px', borderRadius: '50px',
+                          color: 'rgba(255,255,255,0.6)', fontSize: '13px',
+                          cursor: 'pointer', display: 'flex', alignItems: 'center',
+                          justifyContent: 'center', gap: '6px'
                         }}
                       >
-                        <RefreshCcw size={14} /> Re-record
+                        <Camera size={14} /> Re-record
                       </button>
-                    )}
-                  </div>
-                )}
+                      <button
+                        type="button"
+                        onClick={() => { deleteRecording(); fileInputRef.current?.click(); }}
+                        style={{
+                          flex: 1, background: 'rgba(255,255,255,0.08)',
+                          border: '1px solid rgba(255,255,255,0.15)',
+                          padding: '10px', borderRadius: '50px',
+                          color: 'rgba(255,255,255,0.6)', fontSize: '13px',
+                          cursor: 'pointer', display: 'flex', alignItems: 'center',
+                          justifyContent: 'center', gap: '6px'
+                        }}
+                      >
+                        <Upload size={14} /> Re-upload
+                      </button>
+                    </div>
+                  )}
+                </div>
 
+                {/* Yes / No messages */}
                 <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
                   <div style={{ flex: 1 }}>
                     <label className="form-label text-gradient-rose" style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -950,7 +831,7 @@ export default function Home() {
           </>
         )}
 
-        {/* Step 3: QR Code with integrated payment */}
+        {/* ═══════════ STEP 3: QR + PAYMENT ═══════════ */}
         {step === 3 && proposalId && (
           <>
             <div className={`form-content ${animationDirection === 'right' ? 'slide-in-right' : 'slide-in-left'}`}>
@@ -971,18 +852,14 @@ export default function Home() {
                 onClick={() => {
                   setProposalId(null);
                   setFormData({
-                    locationLat: 0,
-                    locationLng: 0,
-                    locationName: '',
-                    hint: '',
-                    question: 'Will you marry me?',
+                    locationLat: 0, locationLng: 0, locationName: '', hint: '',
+                    question: '💍 Watch my special message...',
                     yesMessage: "You've made me the happiest person alive! 💍❤️",
                     noMessage: "I understand. Thank you for being honest with me. 💔",
                     email: ''
                   });
                   setRecordedBlob(null);
                   setRecordedUrl(null);
-                  setUseVideo(false);
                   localStorage.removeItem('lastProposal');
                   goToStep(1);
                 }}
@@ -996,14 +873,9 @@ export default function Home() {
 
       {/* Footer */}
       <div style={{
-        padding: '12px',
-        textAlign: 'center',
-        fontSize: '11px',
-        color: 'rgba(255,255,255,0.3)',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        gap: '4px'
+        padding: '12px', textAlign: 'center', fontSize: '11px',
+        color: 'rgba(255,255,255,0.3)', display: 'flex',
+        justifyContent: 'center', alignItems: 'center', gap: '4px'
       }}>
         Made with <Heart size={10} fill="currentColor" /> for lovers everywhere
       </div>
