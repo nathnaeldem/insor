@@ -137,7 +137,7 @@ export default function QRCodeDisplay({
             {!isPaid ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     <a
-                        href={`https://carenote.gumroad.com/l/uizjdd?email=${encodeURIComponent(email)}`}
+                        href={`https://insory.gumroad.com/l/uizjdd?email=${encodeURIComponent(email)}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="btn-primary"
