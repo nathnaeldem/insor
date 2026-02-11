@@ -12,7 +12,11 @@ import {
   HeartCrack,
   Mail,
   type LucideIcon,
-  Loader2
+  Loader2,
+  CreditCard,
+  ExternalLink,
+  Lock,
+  CheckCircle
 } from 'lucide-react';
 import QRCodeDisplay from '../components/QRCodeDisplay';
 
@@ -30,6 +34,8 @@ interface ProposalData {
 export default function Home() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true); // Loading spinner on mount
+  const [isParsingLocation, setIsParsingLocation] = useState(false); // Spinner for AI parse
   const [error, setError] = useState('');
   const [proposalId, setProposalId] = useState<string | null>(null);
   const [isPaid, setIsPaid] = useState(false);
@@ -47,30 +53,37 @@ export default function Home() {
     email: ''
   });
 
-  // Check local storage on mount
+  // Check local storage on mount — with loading spinner
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('lastProposal');
-      if (saved) {
-        const { id, email } = JSON.parse(saved);
-        if (id) {
-          setProposalId(id);
-          // Fetch payment status
-          supabase
-            .from('proposals')
-            .select('is_paid, question')
-            .eq('id', id)
-            .single()
-            .then(({ data }) => {
+    const checkSaved = async () => {
+      try {
+        if (typeof window !== 'undefined') {
+          const saved = localStorage.getItem('lastProposal');
+          if (saved) {
+            const { id, email } = JSON.parse(saved);
+            if (id) {
+              setProposalId(id);
+              const { data } = await supabase
+                .from('proposals')
+                .select('is_paid, question')
+                .eq('id', id)
+                .single();
+
               if (data) {
                 setIsPaid(data.is_paid || false);
                 setFormData(prev => ({ ...prev, question: data.question, email: email || '' }));
                 setStep(3);
               }
-            });
+            }
+          }
         }
+      } catch (err) {
+        console.error('Error loading saved proposal:', err);
+      } finally {
+        setIsInitialLoading(false);
       }
-    }
+    };
+    checkSaved();
   }, []);
 
   const handleInputChange = (field: keyof ProposalData, value: string | number) => {
@@ -79,36 +92,57 @@ export default function Home() {
   };
 
   const parseLocationUrl = useCallback(async (url: string) => {
+    setIsParsingLocation(true);
     setLoading(true);
     setError('');
 
     try {
-      // Try to extract coordinates from various Google Maps URL formats
+      // Try client-side regex first
       let lat: number | null = null;
       let lng: number | null = null;
       let locationName = '';
 
-      // Format: @lat,lng or /place/lat,lng
+      // Google Maps: @lat,lng
       const coordMatch = url.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
       if (coordMatch) {
         lat = parseFloat(coordMatch[1]);
         lng = parseFloat(coordMatch[2]);
       }
 
-      // Format: ?q=lat,lng or query=lat,lng
+      // Google Maps: ?q=lat,lng
       const queryMatch = url.match(/[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
       if (!lat && queryMatch) {
         lat = parseFloat(queryMatch[1]);
         lng = parseFloat(queryMatch[2]);
       }
 
-      // Format: /maps/place/Name/@lat,lng
+      // Apple Maps: ?ll=lat,lng
+      const appleLl = url.match(/[?&]ll=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+      if (!lat && appleLl) {
+        lat = parseFloat(appleLl[1]);
+        lng = parseFloat(appleLl[2]);
+      }
+
+      // Apple Maps: ?sll=lat,lng
+      const appleSll = url.match(/[?&]sll=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+      if (!lat && appleSll) {
+        lat = parseFloat(appleSll[1]);
+        lng = parseFloat(appleSll[2]);
+      }
+
+      // Google Maps place name
       const placeMatch = url.match(/\/place\/([^/@]+)/);
       if (placeMatch) {
         locationName = decodeURIComponent(placeMatch[1].replace(/\+/g, ' '));
       }
 
-      // If we still don't have coordinates, try using AI to parse
+      // Apple Maps place/address
+      const applePlace = url.match(/maps\.apple\.com.*[?&](?:q|address)=([^&]+)/);
+      if (applePlace && !locationName) {
+        locationName = decodeURIComponent(applePlace[1].replace(/\+/g, ' '));
+      }
+
+      // If we still don't have coordinates, try server-side (handles short links + AI)
       if (!lat || !lng) {
         const response = await fetch('/api/parse-location', {
           method: 'POST',
@@ -138,13 +172,21 @@ export default function Home() {
       setError('Failed to parse location. Try entering coordinates manually.');
     } finally {
       setLoading(false);
+      setIsParsingLocation(false);
     }
   }, []);
 
   const handleLocationPaste = async (e: React.ClipboardEvent<HTMLInputElement>) => {
     const pastedText = e.clipboardData.getData('text');
 
-    if (pastedText.includes('google.com/maps') || pastedText.includes('goo.gl') || pastedText.includes('maps.app')) {
+    // Google Maps or Apple Maps links
+    if (
+      pastedText.includes('google.com/maps') ||
+      pastedText.includes('goo.gl') ||
+      pastedText.includes('maps.app') ||
+      pastedText.includes('maps.apple.com') ||
+      pastedText.includes('apple.co')
+    ) {
       e.preventDefault();
       await parseLocationUrl(pastedText);
     } else if (pastedText.match(/-?\d+\.?\d*,\s*-?\d+\.?\d*/)) {
@@ -156,7 +198,7 @@ export default function Home() {
           ...prev,
           locationLat: coords[0],
           locationLng: coords[1],
-          locationName: `${coords[0].toFixed(4)}, ${coords[1].toFixed(4)}`
+          locationName: prev.locationName || `${coords[0].toFixed(4)}, ${coords[1].toFixed(4)}`
         }));
       }
     }
@@ -196,7 +238,7 @@ export default function Home() {
 
     setIsCheckingPayment(true);
     let attempts = 0;
-    const maxAttempts = 5; // 10 seconds total (2s interval)
+    const maxAttempts = 5;
 
     const interval = setInterval(async () => {
       attempts++;
@@ -251,7 +293,7 @@ export default function Home() {
 
       setProposalId(data.id);
       localStorage.setItem('lastProposal', JSON.stringify({ id: data.id, email: formData.email }));
-      setIsPaid(false); // New proposals are unpaid by default
+      setIsPaid(false);
       goToStep(3);
     } catch (err) {
       console.error('Error creating proposal:', err);
@@ -268,6 +310,18 @@ export default function Home() {
     'Will you be my boyfriend?',
     'Will you spend forever with me?'
   ];
+
+  // ─── INITIAL LOADING SPINNER ───
+  if (isInitialLoading) {
+    return (
+      <div className="app-container">
+        <div className="main-content" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+          <Loader2 className="animate-spin text-rose-400" size={48} style={{ marginBottom: '16px' }} />
+          <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '14px' }}>Loading your proposal...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="app-container">
@@ -316,26 +370,41 @@ export default function Home() {
                 </div>
 
                 <div style={{ marginBottom: '12px' }}>
-                  <label className="form-label">Paste Google Maps Link or Coordinates</label>
-                  <input
-                    type="text"
-                    className="input-field"
-                    placeholder="Paste a Google Maps link or coordinates..."
-                    onPaste={handleLocationPaste}
-                    onChange={(e) => {
-                      // Handle manual coordinate input
-                      const val = e.target.value;
-                      const coords = val.split(',').map(c => parseFloat(c.trim()));
-                      if (coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
-                        setFormData(prev => ({
-                          ...prev,
-                          locationLat: coords[0],
-                          locationLng: coords[1],
-                          locationName: prev.locationName || `${coords[0].toFixed(4)}, ${coords[1].toFixed(4)}`
-                        }));
-                      }
-                    }}
-                  />
+                  <label className="form-label">Paste Google Maps or Apple Maps Link</label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="text"
+                      className="input-field"
+                      placeholder="Paste a map link or coordinates..."
+                      onPaste={handleLocationPaste}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const coords = val.split(',').map(c => parseFloat(c.trim()));
+                        if (coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
+                          setFormData(prev => ({
+                            ...prev,
+                            locationLat: coords[0],
+                            locationLng: coords[1],
+                            locationName: prev.locationName || `${coords[0].toFixed(4)}, ${coords[1].toFixed(4)}`
+                          }));
+                        }
+                      }}
+                      style={{ paddingRight: isParsingLocation ? '44px' : undefined }}
+                    />
+                    {isParsingLocation && (
+                      <div style={{
+                        position: 'absolute',
+                        right: '12px',
+                        top: '50%',
+                        transform: 'translateY(-50%)'
+                      }}>
+                        <Loader2 className="animate-spin text-rose-400" size={20} />
+                      </div>
+                    )}
+                  </div>
+                  <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', marginTop: '6px' }}>
+                    Supports Google Maps, Apple Maps, and shortened links
+                  </p>
                 </div>
 
                 {formData.locationLat !== 0 && formData.locationLng !== 0 && (
@@ -381,7 +450,7 @@ export default function Home() {
                 </div>
 
                 <div style={{ marginBottom: '12px' }}>
-                  <label className="form-label">Your Email (to save your proposal)</label>
+                  <label className="form-label">Your Email (to get notified)</label>
                   <input
                     type="email"
                     className="input-field"
@@ -395,7 +464,7 @@ export default function Home() {
                   <label className="form-label">Give them a hint</label>
                   <textarea
                     className="textarea-field"
-                    placeholder="e.g.you speeled a coffe,..."
+                    placeholder="e.g. Remember where we first met?..."
                     value={formData.hint}
                     onChange={(e) => handleInputChange('hint', e.target.value)}
                     style={{ minHeight: '80px' }}
@@ -503,32 +572,29 @@ export default function Home() {
           </>
         )}
 
-        {/* Step 3: Payment or QR Code */}
+        {/* Step 3: QR Code + Activation */}
         {step === 3 && proposalId && (
           <>
             <div className={`form-content ${animationDirection === 'right' ? 'slide-in-right' : 'slide-in-left'}`}>
-              {/* Always show QR Code */}
-              <div style={{ marginBottom: !isPaid ? '20px' : '0' }}>
+              {/* QR Code */}
+              <div style={{ marginBottom: '16px' }}>
                 <QRCodeDisplay
                   proposalId={proposalId}
                   question={formData.question}
                 />
               </div>
 
+              {/* Unpaid — clean, simple activation prompt */}
               {!isPaid && (
                 <div className="glass-card slide-in-right" style={{
                   padding: '24px',
                   textAlign: 'center',
-                  background: 'rgba(20, 5, 20, 0.8)',
-                  border: '1px solid var(--rose-500)',
-                  boxShadow: '0 0 30px rgba(244, 63, 108, 0.2)'
+                  background: 'rgba(20, 5, 20, 0.85)',
+                  border: '1px solid rgba(244, 63, 108, 0.3)',
                 }}>
-                  <div style={{ fontSize: '32px', marginBottom: '12px' }}>🔒</div>
-                  <h2 className="text-gradient-rose" style={{ fontSize: '22px', marginBottom: '8px' }}>
-                    Activate Your Proposal
-                  </h2>
-                  <p style={{ color: 'rgba(255,255,255,0.8)', marginBottom: '16px', fontSize: '14px' }}>
-                    Scan the QR above to test. To make it live for your partner, please activate it.
+                  <Lock className="text-rose-400" size={28} style={{ margin: '0 auto 12px' }} />
+                  <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '15px', marginBottom: '20px', fontWeight: 500 }}>
+                    Your proposal is not live yet
                   </p>
 
                   <a
@@ -540,24 +606,27 @@ export default function Home() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '8px',
+                      gap: '10px',
                       width: '100%',
-                      background: 'linear-gradient(135deg, #ff90e8 0%, #ffc9f0 100%)',
-                      color: '#000',
+                      padding: '14px',
+                      background: 'linear-gradient(135deg, var(--rose-500), var(--rose-600))',
+                      color: '#fff',
                       fontWeight: 700,
-                      marginBottom: '12px'
+                      fontSize: '16px',
+                      marginBottom: '12px',
+                      boxShadow: '0 4px 20px rgba(244, 63, 108, 0.35)'
                     }}
                   >
-                    Make It Live ($28)
+                    <CreditCard size={18} /> Make It Live — $28 <ExternalLink size={14} />
                   </a>
 
                   <button
                     onClick={checkPaymentLoop}
                     disabled={isCheckingPayment}
                     style={{
-                      background: 'rgba(255,255,255,0.1)',
-                      border: '1px solid rgba(255,255,255,0.2)',
-                      color: '#fff',
+                      background: 'rgba(255,255,255,0.08)',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      color: 'rgba(255,255,255,0.7)',
                       padding: '10px',
                       borderRadius: '50px',
                       cursor: isCheckingPayment ? 'wait' : 'pointer',
@@ -575,8 +644,21 @@ export default function Home() {
                     ) : (
                       <RefreshCcw size={14} />
                     )}
-                    {isCheckingPayment ? 'Checking Status...' : 'I Paid, Refresh Status'}
+                    {isCheckingPayment ? 'Checking...' : 'I Paid, Refresh Status'}
                   </button>
+                </div>
+              )}
+
+              {/* Paid — success state */}
+              {isPaid && (
+                <div className="glass-card fade-in" style={{
+                  padding: '20px',
+                  textAlign: 'center',
+                  border: '1px solid rgba(52, 211, 153, 0.3)',
+                  background: 'rgba(52, 211, 153, 0.05)'
+                }}>
+                  <CheckCircle className="text-green-400" size={28} style={{ margin: '0 auto 8px', color: '#34d399' }} />
+                  <p style={{ color: '#34d399', fontWeight: 600, fontSize: '15px' }}>Your proposal is live! 🎉</p>
                 </div>
               )}
 

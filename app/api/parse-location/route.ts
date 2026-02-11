@@ -8,21 +8,78 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'URL is required' }, { status: 400 });
         }
 
-        // Expand shortened URLs (goo.gl, maps.app.goo.gl) by following redirects
-        if (url.includes('goo.gl') || url.includes('maps.app')) {
+        // Expand shortened URLs (goo.gl, maps.app.goo.gl, Apple Maps short links) by following redirects
+        if (url.includes('goo.gl') || url.includes('maps.app') || url.includes('apple.co') || url.match(/maps\.apple\.com.*[?&]auid=/)) {
             try {
                 console.log('🔗 Expanding shortened URL:', url);
+                // Use GET with redirect: 'manual' to capture the Location header
+                // Some short URL services don't respond to HEAD
                 const expandResponse = await fetch(url, {
-                    method: 'HEAD',
+                    method: 'GET',
                     redirect: 'follow',
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (compatible; Insory/1.0)'
+                    }
                 });
                 const expandedUrl = expandResponse.url;
-                console.log('✅ Expanded to:', expandedUrl);
-                url = expandedUrl;
+                if (expandedUrl && expandedUrl !== url) {
+                    console.log('✅ Expanded to:', expandedUrl);
+                    url = expandedUrl;
+                }
             } catch (expandError) {
                 console.warn('⚠️  Failed to expand shortened URL, trying original:', expandError);
-                // Continue with original URL if expansion fails
             }
+        }
+
+        // Try to extract coordinates from URL with regex before calling AI
+        let lat: number | null = null;
+        let lng: number | null = null;
+        let name: string | null = null;
+
+        // Google Maps: @lat,lng
+        const gmapCoord = url.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+        if (gmapCoord) {
+            lat = parseFloat(gmapCoord[1]);
+            lng = parseFloat(gmapCoord[2]);
+        }
+
+        // Google Maps: ?q=lat,lng
+        const gmapQuery = url.match(/[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+        if (!lat && gmapQuery) {
+            lat = parseFloat(gmapQuery[1]);
+            lng = parseFloat(gmapQuery[2]);
+        }
+
+        // Apple Maps: ?ll=lat,lng
+        const appleLl = url.match(/[?&]ll=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+        if (!lat && appleLl) {
+            lat = parseFloat(appleLl[1]);
+            lng = parseFloat(appleLl[2]);
+        }
+
+        // Apple Maps: ?q=lat,lng or ?sll=lat,lng
+        const appleSll = url.match(/[?&](?:sll|q)=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+        if (!lat && appleSll) {
+            lat = parseFloat(appleSll[1]);
+            lng = parseFloat(appleSll[2]);
+        }
+
+        // Apple Maps: /place?address=...
+        const applePlace = url.match(/maps\.apple\.com.*[?&](?:q|address)=([^&]+)/);
+        if (applePlace && !lat) {
+            name = decodeURIComponent(applePlace[1].replace(/\+/g, ' '));
+        }
+
+        // Google Maps: /place/Name/
+        const gPlace = url.match(/\/place\/([^/@]+)/);
+        if (gPlace) {
+            name = decodeURIComponent(gPlace[1].replace(/\+/g, ' '));
+        }
+
+        // If regex found coords, return immediately -- no AI call needed
+        if (lat && lng) {
+            console.log('📍 Regex extracted coords:', lat, lng, name);
+            return NextResponse.json({ lat, lng, name: name || null });
         }
 
         // Check if API key exists
@@ -68,14 +125,12 @@ Do not include any other text, just the JSON.`
         if (!response.ok) {
             const errorText = await response.text();
             console.error('OpenRouter API error:', response.status, errorText);
-            // Return null coords instead of throwing — fallback to regex parsing
             return NextResponse.json({ lat: null, lng: null, name: null });
         }
 
         const data = await response.json();
         const content = data.choices?.[0]?.message?.content || '';
 
-        // Try to parse the JSON from the response
         const jsonMatch = content.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
             const parsed = JSON.parse(jsonMatch[0]);
@@ -85,7 +140,6 @@ Do not include any other text, just the JSON.`
         return NextResponse.json({ lat: null, lng: null, name: null });
     } catch (error) {
         console.error('Error parsing location:', error);
-        // Return null coords gracefully instead of 500 error
         return NextResponse.json({ lat: null, lng: null, name: null });
     }
 }

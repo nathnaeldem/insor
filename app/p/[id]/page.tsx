@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { MapPin, Heart, X, Sparkles, Navigation, Mail, AlertCircle, HeartCrack, Loader2, Gem } from 'lucide-react';
+import { MapPin, Heart, X, Sparkles, Navigation, Mail, AlertCircle, HeartCrack, Loader2, Gem, CheckCircle2 } from 'lucide-react';
 
 interface ProposalData {
     id: string;
@@ -30,6 +30,7 @@ export default function ProposalPage() {
     const [response, setResponse] = useState<'yes' | 'no' | null>(null);
     const [error, setError] = useState('');
     const [watchingLocation, setWatchingLocation] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
 
     // Load proposal data
     useEffect(() => {
@@ -92,7 +93,6 @@ export default function ProposalPage() {
         setStage('distance');
 
         if (!navigator.geolocation) {
-            // If geolocation not available, just show the question
             setStage('question');
             return;
         }
@@ -108,7 +108,6 @@ export default function ProposalPage() {
 
                 setDistance(dist);
 
-                // If within 50 meters, show the question
                 if (dist <= 50) {
                     navigator.geolocation.clearWatch(watchId);
                     setWatchingLocation(false);
@@ -117,7 +116,6 @@ export default function ProposalPage() {
             },
             (err) => {
                 console.error('Geolocation error:', err);
-                // Show question anyway if geolocation fails
                 setStage('question');
             },
             {
@@ -132,8 +130,9 @@ export default function ProposalPage() {
         };
     }, [proposal, calculateDistance]);
 
-    // Handle response
+    // Handle response — save to DB + send email notification
     const handleResponse = async (answer: 'yes' | 'no') => {
+        setIsSaving(true);
         try {
             await supabase
                 .from('proposals')
@@ -143,10 +142,19 @@ export default function ProposalPage() {
                 })
                 .eq('id', proposalId);
 
+            // Fire email notification (fire-and-forget)
+            fetch('/api/notify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ proposalId, answer })
+            }).catch(err => console.error('Notification error:', err));
+
             setResponse(answer);
             setStage('response');
         } catch (err) {
             console.error('Error saving response:', err);
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -159,6 +167,12 @@ export default function ProposalPage() {
 
     // Skip location check and go directly to question
     const skipToQuestion = () => {
+        setStage('question');
+    };
+
+    // Confirm arrival (the "I'm here!" button)
+    const confirmArrival = () => {
+        setWatchingLocation(false);
         setStage('question');
     };
 
@@ -192,7 +206,7 @@ export default function ProposalPage() {
                             Waiting for Activation
                         </h2>
                         <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '24px' }}>
-                            This special proposal hasn't been activated yet. Please contact the person who sent this to you.
+                            This special proposal hasn&apos;t been activated yet. Please contact the person who sent this to you.
                         </p>
                     </div>
                 )}
@@ -271,7 +285,7 @@ export default function ProposalPage() {
                         <div className="glass-card fade-in" style={{ padding: '32px', textAlign: 'center', maxWidth: '400px' }}>
                             <Navigation className="text-rose-400 pulse" size={64} style={{ margin: '0 auto 16px' }} />
                             <h2 className="text-gradient-purple" style={{ fontSize: '24px', marginBottom: '16px' }}>
-                                You're Getting Closer
+                                You&apos;re Getting Closer
                             </h2>
 
                             {distance !== null ? (
@@ -317,17 +331,30 @@ export default function ProposalPage() {
                             )}
                         </div>
 
-                        <div className="sticky-action-bar">
+                        <div className="sticky-action-bar" style={{ flexDirection: 'column', gap: '8px' }}>
+                            {/* "I'm Here!" button */}
+                            <button
+                                className="btn-primary"
+                                style={{
+                                    width: '100%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '8px'
+                                }}
+                                onClick={confirmArrival}
+                            >
+                                <CheckCircle2 size={18} /> I&apos;m Here! Show Me
+                            </button>
                             <button
                                 style={{
                                     background: 'none',
-                                    border: '1px solid rgba(255,255,255,0.2)',
-                                    padding: '8px 16px',
-                                    borderRadius: '20px',
-                                    color: 'rgba(255,255,255,0.6)',
-                                    fontSize: '13px',
+                                    border: 'none',
+                                    color: 'rgba(255,255,255,0.4)',
+                                    fontSize: '12px',
                                     cursor: 'pointer',
-                                    width: '100%'
+                                    textDecoration: 'underline',
+                                    padding: '4px'
                                 }}
                                 onClick={skipToQuestion}
                             >
@@ -352,16 +379,18 @@ export default function ProposalPage() {
                             <button
                                 className="btn-yes"
                                 onClick={() => handleResponse('yes')}
-                                style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}
+                                disabled={isSaving}
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flex: 1 }}
                             >
-                                <Heart fill="currentColor" size={24} /> Yes!
+                                {isSaving ? <Loader2 className="animate-spin" size={20} /> : <Heart fill="currentColor" size={24} />} Yes!
                             </button>
                             <button
                                 className="btn-no"
                                 onClick={() => handleResponse('no')}
-                                style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}
+                                disabled={isSaving}
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flex: 1 }}
                             >
-                                <X size={24} /> No
+                                {isSaving ? <Loader2 className="animate-spin" size={20} /> : <X size={24} />} No
                             </button>
                         </div>
                     </>
